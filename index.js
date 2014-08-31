@@ -1,32 +1,24 @@
 /**
+ * GOOD THINGS:
+ * XML Parser: https://www.npmjs.org/package/xml2js
+ *
+ *
+ *
  * TODO:
  *
- *	Download all DDL structures and templates aswell
+ *	Since it's important that no templates/structures have the same name, create a function to 
+ *  warn the user if some of the entities have the same name.
  *
- *	Don't Loop alla ADTs.
- *		Right now, the request for ADT:s will loop *all* the Liferay sites available
- *		and do a separate request for each one of them. This can take a long time if there's
- *		many sites. We need to be smarter about this. Like blacklisting, whitelisting or 
- *		finding another api call to make.
- *
- *		Could this API be used instead?
- *		http://localhost:8080/api/jsonws?signature=%2Fddmtemplate%2Fsearch-13-companyId-groupIds-classNameIds-classPKs-name-description-type-mode-language-andOperator-start-end-orderByComparator#serviceResults
+ *	Get all Workflows aswell.
  *
  *
  *
- * 		Make sure that we can separate the different types of structures. Right now
- *		it's downloading *all* kind of structures. Stuff like 'Learning Module Metadata.xml'
- *		which I've no idea where it comes from.
- *
- *
- *
- *		Current function for finding out if the app was started with a certain arguments is not
- *		that good. It will search for a key in the arguments-object and if that key exists - 
- *		do something. So far so god. However, the search function is greedy. If object contains
- *		value 'foobar', a search for 'foo' or 'bar' vill return true.
- *	
- *		Maybe just replace it with the regular process.argv.slice(2) and search that array
- *		with indexOf, or underscore's: _.indexOf(array, value) 
+ *	Current function for finding out if the app was started with a certain arguments is not
+ *	that good. It will search for a key in the arguments-object and if that key exists - 
+ *	do something. So far so god. However, the search function is greedy. If object contains
+ *	value 'foobar', a search for 'foo' or 'bar' vill return true.
+ *	Maybe just replace it with the regular process.argv.slice(2) and search that array
+ *	with indexOf, or underscore's: _.indexOf(array, value) 
  *
  */
 
@@ -67,6 +59,7 @@ var inquirer	= require("inquirer");
 
 
 var cli			= require('cli');
+var nprint		= require('node-print');
 
 
 // Localhost MOH
@@ -74,10 +67,7 @@ var config = {
 	host:				'http://localhost:8080/api/jsonws/invoke',
 	username:			'test@liferay.com',
 	password:			'test',
-	structuresFolder:	'/Users/emiloberg/Desktop/outputtest/moh-test/wcm',
-	wcmTemplatesFolder:	'/Users/emiloberg/Desktop/outputtest/moh-test/wcm',
-	adtFolder:			'/Users/emiloberg/Desktop/outputtest/moh-test/adt',
-	tempFolder:			'tmp'
+	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
 };
 
 // MOH
@@ -85,10 +75,7 @@ var config = {
 // 	host:				'http://15.126.227.132/api/jsonws/invoke',
 // 	username:			'superadmin',
 // 	password:			'icT@icT@1234',
-// 	structuresFolder:	'/Users/emiloberg/Desktop/outputtest/moh/wcm',
-// 	wcmTemplatesFolder:	'/Users/emiloberg/Desktop/outputtest/moh/wcm',
-// 	adtFolder:			'/Users/emiloberg/Desktop/outputtest/moh/adt',
-// 	tempFolder:			'tmp'
+// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
 // };
 
 
@@ -97,10 +84,7 @@ var config = {
 // 	host:				'http://10.167.2.160:8280/api/jsonws/',
 // 	username:			'www.admin@cygate.fi',
 // 	password:			'www4dm1n',
-// 	structuresFolder:	'/Users/emiloberg/Desktop/outputtest/fi/wcm',
-// 	wcmTemplatesFolder:	'/Users/emiloberg/Desktop/outputtest/fi/wcm',
-// 	adtFolder:			'/Users/emiloberg/Desktop/outputtest/fi/adt',
-// 	tempFolder:			'tmp'
+// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
 // };
 
 // LOCALHOST CYGATE
@@ -108,89 +92,71 @@ var config = {
 // 	host:				'http://localhost:8080/api/jsonws/',
 // 	username:			'test@cygate.com',
 // 	password:			'test',
-// 	structuresFolder:	'/Users/emiloberg/Desktop/outputtest/cygate-localhost/wcm',
-// 	wcmTemplatesFolder:	'/Users/emiloberg/Desktop/outputtest/cygate-localhost/wcm',
-// 	adtFolder:			'/Users/emiloberg/Desktop/outputtest/cygate-localhost/adt',
-// 	tempFolder:			'tmp'
+// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
 // };
 
 
-// Colors
-var error		= clc.red.bold;
-var errorDesc	= clc.red;
-var warn		= clc.yellow;
-var info		= clc.blue;
-var good		= clc.green;
 
 // Globals
 var globalSites					= [];
 var globalSitesWithStructure	= [];
 var globalCompanyId				= 0;
 
-var globalADTClassNameId		= 0;
-var globalWCMClassNameId		= 0;
-
 var globalStructures			= [];
 var globalTemplates				= [];
 
-var globalWCMTemplates			= []; // de här ska tas bort. Sök igenom koden och ta bort 
-var globalADTTemplates			= []; // de här ska tas bort. Sök igenom koden och ta bort 
 
 // Constansts
 var fixed = {
-	cacheSitesFilename:					'sites.json',
-	cacheSitesWithStructuresFilename:	'siteswithstructures.json',
-	cacheStructuresFilename:			'structures.json',
-	cacheTemplatesFilename:				'templates.json',
-	cacheWCMTemplatesFilename:			'wcmtemplates.json', //Ska också tas bort
-	cacheADTTemplatesFilename:			'adttemplates.json', //Ska också tas bort
-	cacheADTClassNameId:				'adtclassnameid.json',
-	cacheWCMClassNameId:				'wcmclassnameid.json',
-	cacheClassNameIds:					'classnameids.json',
-	txtWorking:							'Working...',
-	cacheFolder:						'cache'
+	cacheFolder:						'cache',
+	cacheSitesFilename:					'Sites.json',
+	cacheSitesWithStructuresFilename:	'SitesWithStructures.json',
+	cacheStructuresFilename:			'Structures.json',
+	cacheTemplatesFilename:				'Templates.json',
+	cacheClassNameIdsByName:			'ClassNameIDsByName.json',
+	cacheClassNameIdsById:				'ClassNameIDsById.json',
+
+	txtWorking:							'Working...'
 };
 
 
-var globalClassNameIds = {
+var globalClassNameIdsById = {};
+
+var globalClassNameIdsByName = {
 	PortletAssetModelAssetEntry: {
-		"filesPath": 'not-applicable',
-		"friendlyName": 'ADT'
+		"filesPath": 'application_display_template/templates',
+		"friendlyName": 'Application Display Template (ADT)'
 	},
 	PortletDynamicdatamappingModelDDMStructure: {
-		"filesPath": 'not-applicable',
-		"friendlyName": 'All structures'
+		"filesPath": 'journal/templates',
+		"friendlyName": 'Journal Article Template'
 	},
 	PortletDocumentlibraryModelDLFileEntryMetadata: {
-		"filesPath": 'not-applicable',
-		"friendlyName": 'Document Metadata'
+		"filesPath": 'document_and_media/document_types',
+		"friendlyName": 'Document Types'
 	},
 	PortletDocumentlibraryUtilRawMetadataProcessor: {
-		"filesPath": 'not-applicable',
+		"filesPath": 'TODO_something_with_document_metadata',
 		"friendlyName": 'TODO Something with Document Metadata'
 	},
 	PortletDynamicdatalistsModelDDLRecordSet: {
-		"filesPath": 'not-applicable',
-		"friendlyName": 'DDL Data Definition'
+		"filesPath": 'dynamic_data_lists/structures',
+		"friendlyName": 'Dynamic Data List (DDL) Definition'
 	},
 	PortletJournalModelJournalArticle: {
-		"filesPath": 'not-applicable',
-		"friendlyName": 'Journal Article'
+		"filesPath": 'journal/structures',
+		"friendlyName": 'Journal Article Structure'
 	},
 	PortalModelUser: {
-		"filesPath": 'not-applicable',
 		"friendlyName": 'User site'
 	},
 	PortalModelGroup: {
-		"filesPath": 'not-applicable',
 		"friendlyName": 'Group'
 	},
 	PortalModelOrganization: {
-		"filesPath": 'not-applicable',
 		"friendlyName": 'Organization'
 	},
 	PortalModelCompany: {
-		"filesPath": 'not-applicable',
 		"friendlyName": 'Company (Global)'
 	}
 };
@@ -199,13 +165,24 @@ var globalClassNameIds = {
 
 
 // Debug things
-var SEVERITY_NORMAL	= 0;
-var SEVERITY_DEBUG	= -1;
-var debugLevel		= 0;
+var debugLevel			= 0;
+
+var SEVERITY_NORMAL		= 0;
+var SEVERITY_DEBUG		= -1;
+var SCREEN_PRINT_INFO	= 0;
+var SCREEN_PRINT_SAVE	= 1;
+var SCREEN_PRINT_ERROR	= 2;
+
 
 mainSwitch(argv);
 
-function chainFetch() {
+/** ************************************************************************ *\
+ * 
+ * CHAINS
+ * 
+\** ************************************************************************ */
+function chainFetchAllFromServer() {
+	writeToScreen('Getting data from server', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 	Q.resolve()
 	.then(clearCache)
 	.then(getClassNameIds)
@@ -213,12 +190,24 @@ function chainFetch() {
 	.then(getCompanyGroupFromCompanyId)
 	.then(getStructuresFromListOfSites)
 	.then(getTemplates)
-	.then(saveStructuresToFile)
+	.then(saveEverythingToFile)
 
-
-	.done(doneFulfilled, doneRejected);
+	.done(whatToDoSwitch, doneRejected);
 }
 
+function chainReadFromCache() {
+	writeToScreen('Reading data from Cache', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+	Q.resolve()
+	.then(getAllCache)
+	.then(saveEverythingToFile)
+	.done(whatToDoSwitch, doneRejected);
+}
+
+/** ************************************************************************ *\
+ * 
+ * TODO: TEMPORARY, REMOVE LATER
+ * 
+\** ************************************************************************ */
 function chainTemp() {
 	Q.resolve()
 	.then(getTemp)
@@ -238,131 +227,113 @@ function handleGetTemp(e){
 }
 
 
-
-// Promise Chain
-//getData('group/get-user-sites')
-// function chainFetch() {
-// 	return Q.resolve()
-// 	.then(getUserSites)
-// 	.then(handleGetUserSites)
-// 	.then(getCompanyGroupFromCompanyId)
-// 	.then(handleGetCompanyGroupFromCompanyId)
-
-
-// 	.then(getStructuresFromListOfSites)
-// 	.then(handleGetStructuresFromListOfSites)
-
-// 	.then(getADTClassNameId)
-// 	.then(handleGetADTClassNameId)
-
-// 	.then(getWCMClassNameId)
-// 	.then(handleGetWCMClassNameId)
-
-// 	.then(getWCMTemplates)
-// 	.then(handleGetWCMTemplates)
-
-// 	.then(getADTs)
-// 	.then(handleGetADTs)
-
-// 	.then(saveStructuresToFile)
-// 	.then(saveWCMTemplatesToFile)
-// 	.then(saveADTTemplatesToFile)
-
-// 	.then(nextThing)
-
-// 	.done(doneFulfilled, doneRejected);
-// }
-
-function chainReadFromCache() {
-	console.log(info('Running \'chainReadFromCache\''));
-	initPromise()
-	.then(getAllCache)
-	.then(showMainMenu)
-	.done(doneFulfilled, doneRejected);
-}
-
-
-
-
-
-
-
-
-
-
-
-
+/** ************************************************************************ *\
+ * 
+ * MAIN SWITCH
+ * 
+\** ************************************************************************ */
 
 
 function showMainMenu() {
-	console.log(info('Running \'showMainMenu\''));
+	inquirer.prompt([
+		{
+			type: "list",
+			name: "theme",
+			message: "XWhat do you want to do?",
+			choices: [
+				"Order a pizza",
+				"Make a reservation",
+				new inquirer.Separator(),
+				"Ask opening hours",
+				"Talk to the receptionnist"
+				]
+		},
+		{
+			type: "list",
+			name: "size",
+			message: "What size do you need",
+			choices: [ "Jumbo", "Large", "Standard", "Medium", "Small", "Micro" ],
+			filter: function( val ) { return val.toLowerCase(); }
+		}
+		], function( answers ) {
+			console.log( JSON.stringify(answers, null, "  ") );
+		});
+}
 
+function whatToDoSwitch() {
 
-inquirer.prompt([
-  {
-    type: "list",
-    name: "theme",
-    message: "XWhat do you want to do?",
-    choices: [
-      "Order a pizza",
-      "Make a reservation",
-      new inquirer.Separator(),
-      "Ask opening hours",
-      "Talk to the receptionnist"
-    ]
-  },
-  {
-    type: "list",
-    name: "size",
-    message: "What size do you need",
-    choices: [ "Jumbo", "Large", "Standard", "Medium", "Small", "Micro" ],
-    filter: function( val ) { return val.toLowerCase(); }
-  }
-], function( answers ) {
-    console.log( JSON.stringify(answers, null, "  ") );
-  });
+	// inquirer.prompt([
+	// 	{
+	// 		type: "list",
+	// 		name: "theme",
+	// 		message: "XWhat do you want to do?",
+	// 		choices: [
+	// 			"Order a pizza",
+	// 			"Make a reservation",
+	// 			new inquirer.Separator(),
+	// 			"Ask opening hours",
+	// 			"Talk to the receptionnist"
+	// 			]
+	// 	},
+	// 	{
+	// 		type: "list",
+	// 		name: "size",
+	// 		message: "What size do you need",
+	// 		choices: [ "Jumbo", "Large", "Standard", "Medium", "Small", "Micro" ],
+	// 		filter: function( val ) { return val.toLowerCase(); }
+	// 	}
+	// 	], function( answers ) {
+	// 		console.log( JSON.stringify(answers, null, "  ") );
+	// 	});
 
 }
 
 function mainSwitch(argv) {
 
-	if (valueExistsInObj(argv._, 'fetch')) {
-		chainFetch();
-	} else if (valueExistsInObj(argv._, 'temp')) {
-		chainTemp();
-	} else if (argv.c) {
+//	if (argv.p) {
+//		console.log(argv.p);
+//	}
+
+	if (argv.c) {
 		chainReadFromCache();
 	} else {
-		console.dir(argv.c);
-		lrException('No valid argument');
+		chainFetchAllFromServer();
 	}
+
+//	if (valueExistsInObj(argv._, 'fetch')) {
+//		chainFetchAllFromServer();
+//	} else if (valueExistsInObj(argv._, 'temp')) {
+//		chainTemp();
+//	} else if (argv.c) {
+//		chainReadFromCache();
+//	} else {
+//		console.dir(argv.c);
+//		lrException('No valid argument');
+//	}
 }
 
 
 
-/**
- * Cache
- *
- */
-
+/** ************************************************************************ *\
+ * 
+ * CACHE
+ * 
+\** ************************************************************************ */
 function getAllCache() {
 	// Todo
 	// Add error handling for missing files 
+
 	globalSites					= readFromCache(fixed.cacheSitesFilename);
 	globalSitesWithStructure	= readFromCache(fixed.cacheSitesWithStructuresFilename);
-
-	globalADTClassNameId		= readFromCache(fixed.cacheADTClassNameId);
-	globalWCMClassNameId		= readFromCache(fixed.cacheWCMClassNameId);
-
 	globalStructures			= readFromCache(fixed.cacheStructuresFilename);
-	globalWCMTemplates			= readFromCache(fixed.cacheWCMTemplatesFilename);
-	globalADTTemplates			= readFromCache(fixed.cacheADTTemplatesFilename);
+	globalTemplates				= readFromCache(fixed.cacheTemplatesFilename);
+	globalClassNameIdsByName	= readFromCache(fixed.cacheClassNameIdsByName);
+	globalClassNameIdsById		= readFromCache(fixed.cacheClassNameIdsById);
 }
 
 function readFromCache(filename) {
 	// Todo
 	// Add error handling for non json files
-	console.log(info('Running \'readFromCache\''));
 	return fs.readJsonSync(fixed.cacheFolder + '/' + filename);
 }
 
@@ -370,74 +341,56 @@ function saveToCache(e, filename) {
 	fs.outputFileSync(fixed.cacheFolder + '/' + filename, JSON.stringify(e));
 }
 
-/**
- * Save to File
- *
- */
-// function saveADTTemplatesToFile() {
-// 	console.log(info('Running \'saveADTTemplatesToFile\''));
-// 	saveToFile(globalADTTemplates, 'adt', config.adtFolder);
-// }
-
-
-// function saveWCMTemplatesToFile() {
-// 	console.log(info('Running \'saveWCMTemplatesToFile\''));
-// 	saveToFile(globalWCMTemplates, 'template', config.wcmTemplatesFolder);
-// }
-
-
-function classNameIdTofriendlyName(classNameId) {
-
+/** ************************************************************************ *\
+ * 
+ * Save To File
+ * 
+\** ************************************************************************ */
+function saveEverythingToFile() {
+	writeToScreen('Saving everything to file', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+	saveStructuresAndTemplatesToFile(globalTemplates);
+	saveStructuresAndTemplatesToFile(globalStructures);
 }
 
-function saveStructuresToFile() {
-	writeToScreen('Saving structures', SEVERITY_NORMAL);
-//	saveToFile(globalStructures, 'structure', config.structuresFolder);
-	saveToFileNew(globalStructures);
-}
-
-function saveToFileNew(e) {
-
-	var file;
-
-	classNames = _.keys(globalClassNameIds);
-	var classNamesById = {};
-
-	for (var x = 0; x < classNames.length; ++x) {
-		classNamesById[globalClassNameIds[classNames[x]].id] = {
-			"friendlyName": globalClassNameIds[classNames[x]].friendlyName,
-			"filesPath": globalClassNameIds[classNames[x]].filesPath,
-			"type": classNames[x]
-		};
-	}
-
-	console.dir(classNamesById);
-
+function saveStructuresAndTemplatesToFile(e) {
+	var filePath;
+	var fileContent;
+	var outCounter = {};
 	for (i = 0; i < e.length; ++i) {
-		console.log(e[i].classNameId);
-		console.log(classNamesById[e[i].classNameId].friendlyName);
-		console.log(warn('-------------'));
-	}
+		if (globalClassNameIdsById.hasOwnProperty(e[i].classNameId)) {
 
-}
+			// Figure out what kind of data we're dealing with and get a filename/path and the content.
+			if (e[i].hasOwnProperty('storageType') && e[i].hasOwnProperty('xsd')) {
+				filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
+				fileContent = e[i].xsd;
+			} else if (e[i].hasOwnProperty('script') && e[i].hasOwnProperty('language')) {
+				filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + e[i].nameCurrentValue + '.' + e[i].language;
+				fileContent = e[i].script;
+			} else {
+				throw Error('Could not find content in entity ' + e[i].classNameId + ' (nothing you can do about this, this is my bad)');
+			}
 
-function saveToFile(e, type, outputPath) {
-	console.log(info('Running \'saveToFile\''));
+			// Save file
+			fs.outputFileSync(filePath, fileContent);
 
-	var i;
-	var file;
-	for (i = 0; i < e.length; ++i) {
-		if (type == 'structure') {
-			file = e[i].nameCurrentValue + '.' + e[i].storageType;
-			fs.outputFileSync(outputPath + '/' + file, e[i].xsd);
-		} else if (type == 'template' || type == 'adt') {
-			file = e[i].nameCurrentValue + '.' + e[i].language;
-			fs.outputFileSync(outputPath + '/' + file, e[i].script);
+			//  Count the different files to be able to tell the user what's saved.
+			if (outCounter.hasOwnProperty(globalClassNameIdsById[e[i].classNameId].friendlyName)) {
+				outCounter[globalClassNameIdsById[e[i].classNameId].friendlyName] = outCounter[globalClassNameIdsById[e[i].classNameId].friendlyName] + 1;
+			} else {
+				outCounter[globalClassNameIdsById[e[i].classNameId].friendlyName] = 1;
+			}
+
+
 		} else {
-			lrException('Incorrect type supplied');
+			throw Error('Found an entry with ClassNameId ' + e[i].classNameId + ', but I don\'t know what kind of entry that is (nothing you can do about this, this is my bad)');
 		}
 	}
-	console.log(good('Saved ' + e.length + ' files (of type ' + type + ') to disc'));
+
+	// Echo what has been saved
+	var outKeys = _.keys(outCounter);
+	for (var x = 0; x < outKeys.length; ++x) {
+		nprint.pf('%10s   %10s', outCounter[outKeys[x]], outKeys[x]);
+	}
 }
 
 
@@ -447,7 +400,7 @@ function saveToFile(e, type, outputPath) {
  * 
 \** ************************************************************************ */
 function getUserSites() {
-	writeToScreen('Downloading list of sites', SEVERITY_NORMAL);
+	writeToScreen('Downloading list of sites', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 	return getData('{"/group/get-user-sites": {}}').then(
 		function (e) {
 			if(e.length === 0) {
@@ -460,7 +413,7 @@ function getUserSites() {
 }
 
 function getCompanyGroupFromCompanyId() {
-	writeToScreen('Downloading company site', SEVERITY_NORMAL);
+	writeToScreen('Downloading company site', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 	return getData('{"/group/get-company-group": {"companyId": ' + globalCompanyId + '}}').then(
 		function (e) {
 			// Dirty way of adding the global site to the list of sites.
@@ -476,12 +429,12 @@ function getCompanyGroupFromCompanyId() {
  * 
 \** ************************************************************************ */
 function getTemplates() {
-	writeToScreen('Downloading templates', SEVERITY_NORMAL);
+	writeToScreen('Downloading templates', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 	var apiArr = [];
 
 	for (var i = 0; i < globalSites.length; ++i) {
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIds.PortletAssetModelAssetEntry.id + '}}');
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIds.PortletDynamicdatamappingModelDDMStructure.id + '}}');
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletAssetModelAssetEntry.id + '}}');
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletDynamicdatamappingModelDDMStructure.id + '}}');
 	}
 
 	return getData('[' + apiArr.join() + ']').then(
@@ -504,7 +457,7 @@ function getTemplates() {
 \** ************************************************************************ */
 
 function getClassNameIds() {
-	writeToScreen('Downloading id\'s', SEVERITY_NORMAL);
+	writeToScreen('Downloading id\'s', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 	return getData('[' +
 		// Templates and Structures to be downloaded
 		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.asset.model.AssetEntry"}}, ' + //(10083) ADT
@@ -523,18 +476,31 @@ function getClassNameIds() {
 		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Company"}}' + //(10025) Company (global)
 		']').then(
 			function (e) {
-				globalClassNameIds.PortletAssetModelAssetEntry.id =						e[0];
-				globalClassNameIds.PortletDynamicdatamappingModelDDMStructure.id =		e[1];
-				globalClassNameIds.PortletDocumentlibraryModelDLFileEntryMetadata.id =	e[2];
-				globalClassNameIds.PortletDocumentlibraryUtilRawMetadataProcessor.id =	e[3];
-				globalClassNameIds.PortletDynamicdatalistsModelDDLRecordSet.id =			e[4];
-				globalClassNameIds.PortletJournalModelJournalArticle.id =					e[5];
-				globalClassNameIds.PortalModelUser.id =									e[6];
-				globalClassNameIds.PortalModelGroup.id =									e[7];
-				globalClassNameIds.PortalModelOrganization.id =							e[8];
-				globalClassNameIds.PortalModelCompany.id =								e[9];
+				globalClassNameIdsByName.PortletAssetModelAssetEntry.id =						e[0];
+				globalClassNameIdsByName.PortletDynamicdatamappingModelDDMStructure.id =		e[1];
+				globalClassNameIdsByName.PortletDocumentlibraryModelDLFileEntryMetadata.id =	e[2];
+				globalClassNameIdsByName.PortletDocumentlibraryUtilRawMetadataProcessor.id =	e[3];
+				globalClassNameIdsByName.PortletDynamicdatalistsModelDDLRecordSet.id =			e[4];
+				globalClassNameIdsByName.PortletJournalModelJournalArticle.id =					e[5];
+				globalClassNameIdsByName.PortalModelUser.id =									e[6];
+				globalClassNameIdsByName.PortalModelGroup.id =									e[7];
+				globalClassNameIdsByName.PortalModelOrganization.id =							e[8];
+				globalClassNameIdsByName.PortalModelCompany.id =								e[9];
 				
-				saveToCache(globalClassNameIds, fixed.cacheClassNameIds);
+				saveToCache(globalClassNameIdsByName, fixed.cacheClassNameIdsByName);
+
+
+				// Create a copy of the object but with id as key.
+				var classNames = _.keys(globalClassNameIdsByName);
+				for (var x = 0; x < classNames.length; ++x) {
+					globalClassNameIdsById[globalClassNameIdsByName[classNames[x]].id] = {
+						"friendlyName": globalClassNameIdsByName[classNames[x]].friendlyName,
+						"filesPath": globalClassNameIdsByName[classNames[x]].filesPath,
+						"type": classNames[x]
+					};
+				}
+
+				saveToCache(globalClassNameIdsById, fixed.cacheClassNameIdsById);
 			});
 }
 
@@ -545,7 +511,7 @@ function getClassNameIds() {
  * 
 \** ************************************************************************ */
 function getStructuresFromListOfSites() {
-	writeToScreen('Downloading structures', SEVERITY_NORMAL);
+	writeToScreen('Downloading structures', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 
 	var sitesList = [];
 	var i;
@@ -579,10 +545,18 @@ function clearCache() {
 	fs.removeSync(fixed.cacheFolder);
 }
 
-function writeToScreen(str, severity) {
+function writeToScreen(str, severity, type) {
 
 	if (severity >= debugLevel) {
-		console.log(info(str));
+		if (type == SCREEN_PRINT_INFO) {
+			console.log(clc.blue(str));
+		} else if (type == SCREEN_PRINT_SAVE) {
+			console.log(clc.green(str));
+		} else if (type == SCREEN_PRINT_ERROR) {
+			console.log(clc.red(str));
+		} else {
+			console.log(str);
+		}
 	}
 }
 
@@ -596,11 +570,11 @@ function valueExistsInObj(haystack, needle) {
 
 function getData(api){
 
-	cli.spinner(info(fixed.txtWorking));
+	cli.spinner(clc.blue(fixed.txtWorking));
 
 	var deferred = Q.defer();
 
-	writeToScreen('Requesting data (from server ' + config.host + '):\n' + api , SEVERITY_DEBUG);
+	writeToScreen('Requesting data (from server ' + config.host + '):\n' + api , SEVERITY_DEBUG, SCREEN_PRINT_INFO);
 	var lrResException;
 
 	request
@@ -628,17 +602,17 @@ function getData(api){
 }
 
 function doneFulfilled() {
-	console.log(good('Done and \'Fulfilled\''));
+	writeToScreen('All done', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 }
 
 function doneRejected(e) {
-	console.log(error('Done and \'Rejected\''));
-	console.log(errorDesc(e));
+	writeToScreen('Error', SEVERITY_NORMAL, SCREEN_PRINT_ERROR);
+	writeToScreen(e, SEVERITY_NORMAL, SCREEN_PRINT_ERROR);
 }
 
 function lrException(e) {
-	console.log(error('Running ERRORS'));
-	console.log(errorDesc(e));
+	writeToScreen('Error', SEVERITY_NORMAL, SCREEN_PRINT_ERROR);
+	writeToScreen(e, SEVERITY_NORMAL, SCREEN_PRINT_ERROR);
 	process.exit();
 }
 
@@ -651,151 +625,3 @@ function isJson(text) {
 		return false;
 	}
 }
-
-
-// ########################################## COULD BE CRAP ##########################################
-
-/* Seach in Object */
-
-function comparator(obj, text) {
-    if (obj && text && typeof obj === 'object' && typeof text === 'object') {
-        for (var objKey in obj) {
-            if (objKey.charAt(0) !== '$' && hasOwnProperty.call(obj, objKey) &&
-                    comparator(obj[objKey], text[objKey])) {
-                return true;
-            }
-        }
-        return false;
-    }
-    text = ('' + text).toLowerCase();
-    return ('' + obj).toLowerCase().indexOf(text) > -1;
-}
-
-function searchObject(obj, text) {
-    if (typeof text == 'string' && text.charAt(0) === '!') {
-        return !searchObject(obj, text.substr(1));
-    }
-    switch (typeof obj) {
-        case "boolean":
-        case "number":
-        case "string":
-            return comparator(obj, text);
-        case "object":
-            switch (typeof text) {
-                case "object":
-                    return comparator(obj, text);
-                default:
-                    for (var objKey in obj) {
-                        if (objKey.charAt(0) !== '$' && searchObject(obj[objKey], text)) {
-                            return true;
-                        }
-                    }
-                    break;
-            }
-            return false;
-        case "array":
-            for (var i = 0; i < obj.length; i++) {
-                if (searchObject(obj[i], text)) {
-                    return true;
-                }
-            }
-            return false;
-        default:
-            return false;
-    }
-}
-
-
-// ########################################## CRAP ##########################################
-
-
-function nextThing() {
-	console.log(info('Running \'NEXT THING\''));
-}
-
-function getDataFunc(api) {
-  return function() {
-    return getData(api);
-  };
-}
-
-function first() {
-  var deferred = Q.defer();
-  setTimeout(function() {
-    console.log('First sleep');
-    deferred.resolve();
-  }, 1000);
-
-  return deferred.promise;
-}
-
-function second() {
-	return function() {
-		var deferred = Q.defer();
-		setTimeout(function() {
-			console.log('Second sleep');
-			deferred.resolve();
-			}, 1000);
-
-		return deferred.promise;
-	}
-}
-
-function sleep(ms) {
-  
-  var deferred = Q.defer();
-  setTimeout(function() {
-    // setTimeout to resolve the deferred, which will trigger the fulfillment handler of the promise.
-    console.log('sleep for ' + ms + ' ms');
-    deferred.resolve();
-  }, ms);
-  // return the promise of the deferred.
-  return deferred.promise;
-}
-
-// return a fulfillment handler which return another promise
-function SleepFunc(ms) {
-  return function() {
-    return sleep(ms);
-  };
-
-}
-
-
-
-
-// ORIGINAL WORKING CODE
-/*
-var Q = require('q');
-
-function sleep(ms) {
-  
-  var deferred = Q.defer();
-  setTimeout(function() {
-    // setTimeout to resolve the deferred, which will trigger the fulfillment handler of the promise.
-    console.log('sleep for ' + ms + ' ms');
-    deferred.resolve();
-  }, ms);
-  // return the promise of the deferred.
-  return deferred.promise;
-}
-
-// return a fulfillment handler which return another promise
-function SleepFunc(ms) {
-  return function() {
-    return sleep(ms);
-  };
-}
-
-// sequence 3 promises one by one
-var time_start = new Date();
-sleep(1000)
-  .then(SleepFunc(2000))
-  .then(SleepFunc(3000))
-  .then(function() {
-    var time_end = new Date();
-    console.log('sequence complete, time cost: ' + (time_end - time_start) + ' ms');
-  });
-
-// Type `node sequence.js` to run this sample.
-*/
