@@ -1,6 +1,8 @@
 /**
  * TODO:
  *
+ *	Download all DDL structures and templates aswell
+ *
  *	Don't Loop alla ADTs.
  *		Right now, the request for ADT:s will loop *all* the Liferay sites available
  *		and do a separate request for each one of them. This can take a long time if there's
@@ -63,19 +65,54 @@ var _			= require('underscore');
 var argv		= require('minimist')(process.argv.slice(2));
 var inquirer	= require("inquirer");
 
+
+var cli			= require('cli');
+
+
 // Localhost MOH
 var config = {
-	host:				'http://localhost:8080/api/jsonws/',
+	host:				'http://localhost:8080/api/jsonws/invoke',
 	username:			'test@liferay.com',
 	password:			'test',
 	structuresFolder:	'/Users/emiloberg/Desktop/outputtest/moh-test/wcm',
 	wcmTemplatesFolder:	'/Users/emiloberg/Desktop/outputtest/moh-test/wcm',
 	adtFolder:			'/Users/emiloberg/Desktop/outputtest/moh-test/adt',
-	tempFolder:			'tmp',
-	cacheFolder:		'cache'
+	tempFolder:			'tmp'
 };
 
+// MOH
+// var config = {
+// 	host:				'http://15.126.227.132/api/jsonws/invoke',
+// 	username:			'superadmin',
+// 	password:			'icT@icT@1234',
+// 	structuresFolder:	'/Users/emiloberg/Desktop/outputtest/moh/wcm',
+// 	wcmTemplatesFolder:	'/Users/emiloberg/Desktop/outputtest/moh/wcm',
+// 	adtFolder:			'/Users/emiloberg/Desktop/outputtest/moh/adt',
+// 	tempFolder:			'tmp'
+// };
 
+
+// CYGATE FI
+// var config = {
+// 	host:				'http://10.167.2.160:8280/api/jsonws/',
+// 	username:			'www.admin@cygate.fi',
+// 	password:			'www4dm1n',
+// 	structuresFolder:	'/Users/emiloberg/Desktop/outputtest/fi/wcm',
+// 	wcmTemplatesFolder:	'/Users/emiloberg/Desktop/outputtest/fi/wcm',
+// 	adtFolder:			'/Users/emiloberg/Desktop/outputtest/fi/adt',
+// 	tempFolder:			'tmp'
+// };
+
+// LOCALHOST CYGATE
+// var config = {
+// 	host:				'http://localhost:8080/api/jsonws/',
+// 	username:			'test@cygate.com',
+// 	password:			'test',
+// 	structuresFolder:	'/Users/emiloberg/Desktop/outputtest/cygate-localhost/wcm',
+// 	wcmTemplatesFolder:	'/Users/emiloberg/Desktop/outputtest/cygate-localhost/wcm',
+// 	adtFolder:			'/Users/emiloberg/Desktop/outputtest/cygate-localhost/adt',
+// 	tempFolder:			'tmp'
+// };
 
 
 // Colors
@@ -88,26 +125,173 @@ var good		= clc.green;
 // Globals
 var globalSites					= [];
 var globalSitesWithStructure	= [];
+var globalCompanyId				= 0;
 
 var globalADTClassNameId		= 0;
 var globalWCMClassNameId		= 0;
 
 var globalStructures			= [];
-var globalWCMTemplates			= [];
-var globalADTTemplates			= [];
+var globalTemplates				= [];
+
+var globalWCMTemplates			= []; // de här ska tas bort. Sök igenom koden och ta bort 
+var globalADTTemplates			= []; // de här ska tas bort. Sök igenom koden och ta bort 
 
 // Constansts
 var fixed = {
 	cacheSitesFilename:					'sites.json',
 	cacheSitesWithStructuresFilename:	'siteswithstructures.json',
 	cacheStructuresFilename:			'structures.json',
-	cacheWCMTemplatesFilename:			'wcmtemplates.json',
-	cacheADTTemplatesFilename:			'adttemplates.json',
+	cacheTemplatesFilename:				'templates.json',
+	cacheWCMTemplatesFilename:			'wcmtemplates.json', //Ska också tas bort
+	cacheADTTemplatesFilename:			'adttemplates.json', //Ska också tas bort
 	cacheADTClassNameId:				'adtclassnameid.json',
-	cacheWCMClassNameId:				'wcmclassnameid.json'
+	cacheWCMClassNameId:				'wcmclassnameid.json',
+	cacheClassNameIds:					'classnameids.json',
+	txtWorking:							'Working...',
+	cacheFolder:						'cache'
 };
 
+
+var globalClassNameIds = {
+	PortletAssetModelAssetEntry: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'ADT'
+	},
+	PortletDynamicdatamappingModelDDMStructure: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'All structures'
+	},
+	PortletDocumentlibraryModelDLFileEntryMetadata: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'Document Metadata'
+	},
+	PortletDocumentlibraryUtilRawMetadataProcessor: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'TODO Something with Document Metadata'
+	},
+	PortletDynamicdatalistsModelDDLRecordSet: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'DDL Data Definition'
+	},
+	PortletJournalModelJournalArticle: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'Journal Article'
+	},
+	PortalModelUser: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'User site'
+	},
+	PortalModelGroup: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'Group'
+	},
+	PortalModelOrganization: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'Organization'
+	},
+	PortalModelCompany: {
+		"filesPath": 'not-applicable',
+		"friendlyName": 'Company (Global)'
+	}
+};
+
+
+
+
+// Debug things
+var SEVERITY_NORMAL	= 0;
+var SEVERITY_DEBUG	= -1;
+var debugLevel		= 0;
+
 mainSwitch(argv);
+
+function chainFetch() {
+	Q.resolve()
+	.then(clearCache)
+	.then(getClassNameIds)
+	.then(getUserSites)
+	.then(getCompanyGroupFromCompanyId)
+	.then(getStructuresFromListOfSites)
+	.then(getTemplates)
+	.then(saveStructuresToFile)
+
+
+	.done(doneFulfilled, doneRejected);
+}
+
+function chainTemp() {
+	Q.resolve()
+	.then(getTemp)
+	.then(handleGetTemp)
+	.done(doneFulfilled, doneRejected);
+}
+
+
+function getTemp() {
+	return getData('{"/ddmtemplate/get-templates": {"groupId": 10195, "classNameId": 10083}}');
+}
+
+
+function handleGetTemp(e){
+	var resp = JSON.parse(e);
+	console.dir(e);
+}
+
+
+
+// Promise Chain
+//getData('group/get-user-sites')
+// function chainFetch() {
+// 	return Q.resolve()
+// 	.then(getUserSites)
+// 	.then(handleGetUserSites)
+// 	.then(getCompanyGroupFromCompanyId)
+// 	.then(handleGetCompanyGroupFromCompanyId)
+
+
+// 	.then(getStructuresFromListOfSites)
+// 	.then(handleGetStructuresFromListOfSites)
+
+// 	.then(getADTClassNameId)
+// 	.then(handleGetADTClassNameId)
+
+// 	.then(getWCMClassNameId)
+// 	.then(handleGetWCMClassNameId)
+
+// 	.then(getWCMTemplates)
+// 	.then(handleGetWCMTemplates)
+
+// 	.then(getADTs)
+// 	.then(handleGetADTs)
+
+// 	.then(saveStructuresToFile)
+// 	.then(saveWCMTemplatesToFile)
+// 	.then(saveADTTemplatesToFile)
+
+// 	.then(nextThing)
+
+// 	.done(doneFulfilled, doneRejected);
+// }
+
+function chainReadFromCache() {
+	console.log(info('Running \'chainReadFromCache\''));
+	initPromise()
+	.then(getAllCache)
+	.then(showMainMenu)
+	.done(doneFulfilled, doneRejected);
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 function showMainMenu() {
@@ -140,10 +324,12 @@ inquirer.prompt([
 
 }
 
-
 function mainSwitch(argv) {
+
 	if (valueExistsInObj(argv._, 'fetch')) {
 		chainFetch();
+	} else if (valueExistsInObj(argv._, 'temp')) {
+		chainTemp();
 	} else if (argv.c) {
 		chainReadFromCache();
 	} else {
@@ -152,47 +338,6 @@ function mainSwitch(argv) {
 	}
 }
 
-function chainReadFromCache() {
-	console.log(info('Running \'chainReadFromCache\''));
-	initPromise()
-	.then(getAllCache)
-	.then(showMainMenu)
-	.done(doneFulfilled, doneRejected);
-}
-
-// Promise Chain
-//getData('group/get-user-sites')
-function chainFetch() {
-	return Q.resolve()
-	.then(getUserSites)
-	.then(handleGetUserSites)
-	.then(getCompanyGroupFromCompanyId)
-	.then(handleGetCompanyGroupFromCompanyId)
-
-
-	.then(getStructuresFromListOfSites)
-	.then(handleGetStructuresFromListOfSites)
-
-	.then(getADTClassNameId)
-	.then(handleGetADTClassNameId)
-
-	.then(getWCMClassNameId)
-	.then(handleGetWCMClassNameId)
-
-	.then(getWCMTemplates)
-	.then(handleGetWCMTemplates)
-
-	.then(getADTs)
-	.then(handleGetADTs)
-
-	.then(saveStructuresToFile)
-	.then(saveWCMTemplatesToFile)
-	.then(saveADTTemplatesToFile)
-
-	.then(nextThing)
-
-	.done(doneFulfilled, doneRejected);
-}
 
 
 /**
@@ -218,32 +363,62 @@ function readFromCache(filename) {
 	// Todo
 	// Add error handling for non json files
 	console.log(info('Running \'readFromCache\''));
-	return fs.readJsonSync(config.cacheFolder + '/' + filename);
+	return fs.readJsonSync(fixed.cacheFolder + '/' + filename);
 }
 
 function saveToCache(e, filename) {
-	console.log(info('Running \'saveToCache\''));
-	fs.outputFileSync(config.cacheFolder + '/' + filename, JSON.stringify(e));
+	fs.outputFileSync(fixed.cacheFolder + '/' + filename, JSON.stringify(e));
 }
 
 /**
  * Save to File
  *
  */
-function saveADTTemplatesToFile() {
-	console.log(info('Running \'saveADTTemplatesToFile\''));
-	saveToFile(globalADTTemplates, 'adt', config.adtFolder);
-}
+// function saveADTTemplatesToFile() {
+// 	console.log(info('Running \'saveADTTemplatesToFile\''));
+// 	saveToFile(globalADTTemplates, 'adt', config.adtFolder);
+// }
 
 
-function saveWCMTemplatesToFile() {
-	console.log(info('Running \'saveWCMTemplatesToFile\''));
-	saveToFile(globalWCMTemplates, 'template', config.wcmTemplatesFolder);
+// function saveWCMTemplatesToFile() {
+// 	console.log(info('Running \'saveWCMTemplatesToFile\''));
+// 	saveToFile(globalWCMTemplates, 'template', config.wcmTemplatesFolder);
+// }
+
+
+function classNameIdTofriendlyName(classNameId) {
+
 }
 
 function saveStructuresToFile() {
-	console.log(info('Running \'saveStructuresToFile\''));
-	saveToFile(globalStructures, 'structure', config.structuresFolder);
+	writeToScreen('Saving structures', SEVERITY_NORMAL);
+//	saveToFile(globalStructures, 'structure', config.structuresFolder);
+	saveToFileNew(globalStructures);
+}
+
+function saveToFileNew(e) {
+
+	var file;
+
+	classNames = _.keys(globalClassNameIds);
+	var classNamesById = {};
+
+	for (var x = 0; x < classNames.length; ++x) {
+		classNamesById[globalClassNameIds[classNames[x]].id] = {
+			"friendlyName": globalClassNameIds[classNames[x]].friendlyName,
+			"filesPath": globalClassNameIds[classNames[x]].filesPath,
+			"type": classNames[x]
+		};
+	}
+
+	console.dir(classNamesById);
+
+	for (i = 0; i < e.length; ++i) {
+		console.log(e[i].classNameId);
+		console.log(classNamesById[e[i].classNameId].friendlyName);
+		console.log(warn('-------------'));
+	}
+
 }
 
 function saveToFile(e, type, outputPath) {
@@ -272,181 +447,125 @@ function saveToFile(e, type, outputPath) {
  * 
 \** ************************************************************************ */
 function getUserSites() {
-	console.log(info('Running \'getUserSites\''));
-	return getData('group/get-user-sites');
+	writeToScreen('Downloading list of sites', SEVERITY_NORMAL);
+	return getData('{"/group/get-user-sites": {}}').then(
+		function (e) {
+			if(e.length === 0) {
+				throw Error('Could not find any sites');
+			} else {
+				globalSites = e;
+				globalCompanyId = e[0].companyId;
+			}
+		});
 }
 
-function handleGetUserSites(e){
-	console.log(info('Running \'handleGetUserSites\''));
-	var resp = JSON.parse(e);
-	if(resp.length === 0) {
-		throw Error('Could not find any sites');
-	} else {
-		globalSites = resp;
-		return resp[0].companyId;
-	}
+function getCompanyGroupFromCompanyId() {
+	writeToScreen('Downloading company site', SEVERITY_NORMAL);
+	return getData('{"/group/get-company-group": {"companyId": ' + globalCompanyId + '}}').then(
+		function (e) {
+			// Dirty way of adding the global site to the list of sites.
+			globalSites = JSON.parse('[' + JSON.stringify(globalSites).substr(1).slice(0, -1) + ',' + JSON.stringify(e) + ']');
+			saveToCache(globalSites, fixed.cacheSitesFilename);
+		});
 }
-
-function getCompanyGroupFromCompanyId(e) {
-	console.log(info('Running \'getCompanyGroupFromCompanyId\''));
-	return getData('group/get-company-group/company-id/' + e);
-}
-
-function handleGetCompanyGroupFromCompanyId(e) {
-	console.log(info('Running \'handleGetCompanyGroupFromCompanyId\''));
-
-	// Dirty way of adding the global site to the list of sites.
-	globalSites = JSON.parse('{"sites": [' + JSON.stringify(globalSites).substr(1).slice(0, -1) + ',' + e + '] }');
-
-	saveToCache(globalSites, fixed.cacheSitesFilename);
-
-	return globalSites;
-}
-
-
 
 
 /** ************************************************************************ *\
  * 
- * ADTs
+ * TEMPLATES
  * 
 \** ************************************************************************ */
-function getADTs() {
-	console.log(info('Running \'getADTs\''));
-	var res = [];
-	var api;
-	var i;
+function getTemplates() {
+	writeToScreen('Downloading templates', SEVERITY_NORMAL);
+	var apiArr = [];
 
-	for (i = 0; i < globalSites.sites.length; ++i) {
-		api = 'ddmtemplate/get-templates/group-id/' + globalSites.sites[i].groupId + '/class-name-id/' + globalADTClassNameId;
-		res[i] = getData(api);
+	for (var i = 0; i < globalSites.length; ++i) {
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIds.PortletAssetModelAssetEntry.id + '}}');
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIds.PortletDynamicdatamappingModelDDMStructure.id + '}}');
 	}
 
-	return Q.all(res);
+	return getData('[' + apiArr.join() + ']').then(
+		function (e) {
+			var curTemplate = [];
+			for (var y = 0; y < e.length; ++y) {
+				for (i = 0; i < e[y].length; ++i) {
+					globalTemplates.push(e[y][i]);
+				}
+			}
+			saveToCache(globalTemplates, fixed.cacheTemplatesFilename);
+		});
 }
 
-function handleGetADTs(e) {
-	var i;
-	var x;
-	var curTemplate;
-	for (i = 0; i < e.length; ++i) {
-		curTemplate = JSON.parse(e[i]);
-		for (x = 0; x < curTemplate.length; ++x) {
-			globalADTTemplates.push(curTemplate[x]);
-		}
-	}
-
-	saveToCache(globalADTTemplates, fixed.cacheADTTemplatesFilename);
-
-	return globalADTTemplates;
-}
-
-/** ************************************************************************ *\
- * 
- * WCM
- * 
-\** ************************************************************************ */
-function getWCMTemplates() {
-	console.log(info('Running \'getWCMTemplates\''));
-	var res = [];
-	var api;
-	var i;
-
-	// The commented-out loop below will loop *all* the sites and do a separate api call
-	// for every Liferay site. This will take a long time if there are lots of sites.
-	// Instead we should be able to just loop the sites which have structures.
-	// No structure - no template.
-	//	for (i = 0; i < globalSites.sites.length; ++i) {
-	//		api = 'ddmtemplate/get-templates/group-id/' + globalSites.sites[i].groupId + '/class-name-id/' + globalWCMClassNameId;
-	//		res[i] = getData(api);
-	//	}
-	for (i = 0; i < globalSitesWithStructure.length; ++i) {
-		api = 'ddmtemplate/get-templates/group-id/' + globalSitesWithStructure[i] + '/class-name-id/' + globalWCMClassNameId;
-		res[i] = getData(api);
-	}
-
-	return Q.all(res);
-}
-
-function handleGetWCMTemplates(e) {
-	var i;
-	var x;
-	var curTemplate;
-	for (i = 0; i < e.length; ++i) {
-		curTemplate = JSON.parse(e[i]);
-		for (x = 0; x < curTemplate.length; ++x) {
-			globalWCMTemplates.push(curTemplate[x]);
-		}
-	}
-
-	saveToCache(globalWCMTemplates, fixed.cacheWCMTemplatesFilename);
-
-	return globalWCMTemplates;
-}
 
 /** ************************************************************************ *\
  * 
  * CLASS NAME IDS
  * 
 \** ************************************************************************ */
-function getADTClassNameId() {
-	console.log(info('Running \'getADTClassNameId\''));
-	return getData('classname/fetch-class-name-id/clazz/com.liferay.portlet.asset.model.AssetEntry');
+
+function getClassNameIds() {
+	writeToScreen('Downloading id\'s', SEVERITY_NORMAL);
+	return getData('[' +
+		// Templates and Structures to be downloaded
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.asset.model.AssetEntry"}}, ' + //(10083) ADT
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.dynamicdatamapping.model.DDMStructure"}}, ' + // (10102) All Structures
+
+		// A structure can have one of these classNameId's:
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.documentlibrary.model.DLFileEntryMetadata"}}, ' + // (10091) Document Metadata
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.documentlibrary.util.RawMetadataProcessor"}}, ' + // (10315) Something with Documents
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.dynamicdatalists.model.DDLRecordSet"}},' + // (10098) DDL Data Definition
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.journal.model.JournalArticle"}}, ' + // (10109) Journal Article
+
+		// A site can have one of these classNameId's:
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.User"}}, ' + //(10005) User site
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Group"}}, ' + //(10001) Group
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Organization"}}, ' + //(10003) Organization
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Company"}}' + //(10025) Company (global)
+		']').then(
+			function (e) {
+				globalClassNameIds.PortletAssetModelAssetEntry.id =						e[0];
+				globalClassNameIds.PortletDynamicdatamappingModelDDMStructure.id =		e[1];
+				globalClassNameIds.PortletDocumentlibraryModelDLFileEntryMetadata.id =	e[2];
+				globalClassNameIds.PortletDocumentlibraryUtilRawMetadataProcessor.id =	e[3];
+				globalClassNameIds.PortletDynamicdatalistsModelDDLRecordSet.id =			e[4];
+				globalClassNameIds.PortletJournalModelJournalArticle.id =					e[5];
+				globalClassNameIds.PortalModelUser.id =									e[6];
+				globalClassNameIds.PortalModelGroup.id =									e[7];
+				globalClassNameIds.PortalModelOrganization.id =							e[8];
+				globalClassNameIds.PortalModelCompany.id =								e[9];
+				
+				saveToCache(globalClassNameIds, fixed.cacheClassNameIds);
+			});
 }
 
-function handleGetADTClassNameId(e) {
-	globalADTClassNameId = e;
-	saveToCache(e, fixed.cacheADTClassNameId);
-}
-
-function getWCMClassNameId() {
-	console.log(info('Running \'getWCMClassNameId\''));
-	return getData('classname/fetch-class-name-id/clazz/com.liferay.portlet.dynamicdatamapping.model.DDMStructure');
-}
-
-function handleGetWCMClassNameId(e) {
-	globalWCMClassNameId = e;
-	saveToCache(e, fixed.cacheWCMClassNameId);
-}
 
 /** ************************************************************************ *\
  * 
  * STRUCTURES
  * 
 \** ************************************************************************ */
-function getStructuresFromListOfSites(e) {
-	console.log(info('Running \'getStructuresFromListOfSites\''));
+function getStructuresFromListOfSites() {
+	writeToScreen('Downloading structures', SEVERITY_NORMAL);
 
-	var sitesList = '';
+	var sitesList = [];
 	var i;
-	for (i = 0; i < e.sites.length; ++i) {
-		sitesList += '%2C' + e.sites[i].groupId;
+	for (i = 0; i < globalSites.length; ++i) {
+		sitesList.push(globalSites[i].groupId);
 	}
 
-	sitesList = sitesList.substr(3);
+	return getData('{"/ddmstructure/get-structures": {"groupIds": [' + sitesList.join() + ']}}').then(
+		function (e) {
+			globalStructures = e;
+			saveToCache(globalStructures, fixed.cacheStructuresFilename);
 
-	return getData('ddmstructure/get-structures/group-ids/' + sitesList);
-}
-
-function handleGetStructuresFromListOfSites(e) {
-	console.log(info('Running \'handleGetStructuresFromListOfSites\''));
-
-	var ret;
-	ret = JSON.parse(e);
-	globalStructures = ret;
-
-	// Save a list of all the sites which have Structures.
-	var i;
-	for (i = 0; i < ret.length; ++i) {
-		if (globalSitesWithStructure.indexOf(ret[i].groupId) < 0) {
-			globalSitesWithStructure.push(ret[i].groupId);
-		}
-	}
-	
-	saveToCache(globalSitesWithStructure, fixed.cacheSitesWithStructuresFilename);
-	saveToCache(globalStructures, fixed.cacheStructuresFilename);
-
-	return ret;
+			// Save a list of all the sites which have Structures.
+			for (i = 0; i < e.length; ++i) {
+				if (globalSitesWithStructure.indexOf(e[i].groupId) < 0) {
+					globalSitesWithStructure.push(e[i].groupId);
+				}
+			}
+			saveToCache(globalSitesWithStructure, fixed.cacheSitesWithStructuresFilename);
+		});
 }
 
 
@@ -455,6 +574,17 @@ function handleGetStructuresFromListOfSites(e) {
  * Bits 'n' Pieces
  * 
 \** ************************************************************************ */
+
+function clearCache() {
+	fs.removeSync(fixed.cacheFolder);
+}
+
+function writeToScreen(str, severity) {
+
+	if (severity >= debugLevel) {
+		console.log(info(str));
+	}
+}
 
 function valueExistsInObj(haystack, needle) {
 	if (haystack.indexOf(needle) > -1) {
@@ -465,25 +595,27 @@ function valueExistsInObj(haystack, needle) {
 }
 
 function getData(api){
+
+	cli.spinner(info(fixed.txtWorking));
+
 	var deferred = Q.defer();
 
-	console.log(info('Running \'getData\' with call ') + api + ' from server ' + config.host);
+	writeToScreen('Requesting data (from server ' + config.host + '):\n' + api , SEVERITY_DEBUG);
 	var lrResException;
 
 	request
-		//apa
-		.get(config.host + api)
-//		 .post(config.host)
-//  		.send({ name: 'Manny', species: 'cat' })
+		.post(config.host)
+		.set('Content-Type', 'application/json')
 		.auth(config.username, config.password)
+		.send(api)
 		.end(function(res){
 			if (res.ok) {
 				if(isJson(res.text)) {
-					lrResException = JSON.parse(res.text);
-					if(lrResException.hasOwnProperty('exception')){
-						deferred.reject(lrResException.exception);
+					if(res.body.hasOwnProperty('exception')){
+						deferred.reject(res.body.exception);
 					} else {
-						deferred.resolve(res.text);
+						cli.spinner('', true);
+						deferred.resolve(res.body);
 					}
 				} else {
 					deferred.reject('Connected to server but response is not JSON');
@@ -626,6 +758,7 @@ function SleepFunc(ms) {
   return function() {
     return sleep(ms);
   };
+
 }
 
 
