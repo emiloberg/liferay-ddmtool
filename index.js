@@ -62,6 +62,9 @@ var cli			= require('cli');
 var nprint		= require('node-print');
 
 
+
+var heading = clc.blue;
+
 // Localhost MOH
 var config = {
 	host:				'http://localhost:8080/api/jsonws/invoke',
@@ -108,6 +111,9 @@ var globalTemplates				= [];
 
 // Constansts
 var fixed = {
+	settingsFolder:						'settings',
+	projectsFolder:						'projects',
+
 	cacheFolder:						'cache',
 	cacheSitesFilename:					'Sites.json',
 	cacheSitesWithStructuresFilename:	'SitesWithStructures.json',
@@ -288,17 +294,78 @@ function whatToDoSwitch() {
 
 }
 
+function createProject() {
+	console.log();
+	console.log(heading('Initializing a New Project'));
+	console.log('    Need some data to set up the project:');
+	console.log('    - Project Name. You\'ll use this every time you run the script. Pick something short.');
+	console.log('    - The URL, Username and Password to a Liferay Server (URL may be localhost)');
+	console.log('    - A path to where to save DDM files (structures, templates, etc) on your local machine ');
+	console.log('      This is the folder you want to check-in to your version control system.');
+	console.log();
+
+	var questions = [
+		{
+			type: "input",
+			name: "projectName",
+			message: "Project (Short) Name",
+			validate: function( value ) {
+				var pass = value.match(/^[a-z]{1,8}$/i);
+				if (pass) {
+					// TODO, CHECK HERE IF FILE ALREADY EXIST
+
+					if (fs.existsSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + value.toLowerCase() + '.json')) {
+						return "Project named '" + value + "' already exists";
+					} else {
+						return true;
+					}
+				} else {
+					return "Project name must be maximum 10 characters and only contain A-Z, 0-9";
+				}
+			}
+		},
+		{
+			type: "input",
+			name: "host",
+			message: "Liferay Host (URL):"
+		},
+		{
+			type: "input",
+			name: "username",
+			message: "Lifray Username"
+		},
+		{
+			type: "input",
+			name: "password",
+			message: "Liferay Password"
+		},
+		{
+			type: "input",
+			name: "filesPath",
+			message: "Path to files on this machine"
+			//TODO: CHECK IF PATH EXISTS, IF NOT, MAYBE ASK IF WE SHOULD CREATE IT
+		}
+	];
+
+	inquirer.prompt( questions, function(answers) {
+		fs.outputFileSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + answers.projectName.toLowerCase() + '.json', JSON.stringify(answers, null, "  "));
+});
+
+
+}
+
 function mainSwitch(argv) {
 
+	createProject();
 //	if (argv.p) {
 //		console.log(argv.p);
 //	}
 
-	if (argv.c) {
-		chainReadFromCache();
-	} else {
-		chainFetchAllFromServer();
-	}
+	// if (argv.c) {
+	// 	chainReadFromCache();
+	// } else {
+	// 	chainFetchAllFromServer();
+	// }
 
 //	if (valueExistsInObj(argv._, 'fetch')) {
 //		chainFetchAllFromServer();
@@ -312,7 +379,11 @@ function mainSwitch(argv) {
 //	}
 }
 
-
+/** ************************************************************************ *\
+ * 
+ * SETTINGS
+ * 
+\** ************************************************************************ */
 
 /** ************************************************************************ *\
  * 
