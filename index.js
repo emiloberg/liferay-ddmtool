@@ -57,7 +57,6 @@ var _			= require('underscore');
 var argv		= require('minimist')(process.argv.slice(2));
 var inquirer	= require("inquirer");
 
-
 var cli			= require('cli');
 var nprint		= require('node-print');
 
@@ -122,7 +121,10 @@ var fixed = {
 	cacheClassNameIdsByName:			'ClassNameIDsByName.json',
 	cacheClassNameIdsById:				'ClassNameIDsById.json',
 
-	txtWorking:							'Working...'
+	txtWorking:							'Working...',
+
+	pathSlugDocumentTypes:				'document_types',
+	pathSlugMetadataSets:				'metadata_sets'
 };
 
 
@@ -131,19 +133,19 @@ var globalClassNameIdsById = {};
 var globalClassNameIdsByName = {
 	PortletAssetModelAssetEntry: {
 		"filesPath": 'application_display_template/templates',
-		"friendlyName": 'Application Display Template (ADT)'
+		"friendlyName": 'Application Display Template (ADT)',
 	},
 	PortletDynamicdatamappingModelDDMStructure: {
 		"filesPath": 'journal/templates',
 		"friendlyName": 'Journal Article Template'
 	},
 	PortletDocumentlibraryModelDLFileEntryMetadata: {
-		"filesPath": 'document_and_media/document_types',
+		"filesPath": 'document_and_media',
 		"friendlyName": 'Document Types'
 	},
 	PortletDocumentlibraryUtilRawMetadataProcessor: {
-		"filesPath": 'TODO_something_with_document_metadata',
-		"friendlyName": 'TODO Something with Document Metadata'
+		"filesPath": 'unknown',
+		"friendlyName": 'TODO Something with Document Metadata',
 	},
 	PortletDynamicdatalistsModelDDLRecordSet: {
 		"filesPath": 'dynamic_data_lists/structures',
@@ -294,7 +296,41 @@ function whatToDoSwitch() {
 
 }
 
+function mainSwitch(argv) {
+
+//	createProject();
+//	if (argv.p) {
+//		console.log(argv.p);
+//	}
+
+	if (argv.c) {
+		chainReadFromCache();
+	} else {
+		chainFetchAllFromServer();
+	}
+
+//	if (valueExistsInObj(argv._, 'fetch')) {
+//		chainFetchAllFromServer();
+//	} else if (valueExistsInObj(argv._, 'temp')) {
+//		chainTemp();
+//	} else if (argv.c) {
+//		chainReadFromCache();
+//	} else {
+//		console.dir(argv.c);
+//		lrException('No valid argument');
+//	}
+}
+
+/** ************************************************************************ *\
+ * 
+ * SETTINGS
+ * 
+\** ************************************************************************ */
+
 function createProject() {
+
+	//TODO: Add functionality so that the user can input more servers, e.g. local, dev1, prod1, prod2, etc.
+
 	console.log();
 	console.log(heading('Initializing a New Project'));
 	console.log('    Need some data to set up the project:');
@@ -348,42 +384,12 @@ function createProject() {
 	];
 
 	inquirer.prompt( questions, function(answers) {
+		//TODO: CONNECT TO SERVER AND SEE IF CONNECTION WORKS.
+		// MAYBE ASK "Could not connect, want to change host or user/pass"
 		fs.outputFileSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + answers.projectName.toLowerCase() + '.json', JSON.stringify(answers, null, "  "));
-});
-
+	});
 
 }
-
-function mainSwitch(argv) {
-
-	createProject();
-//	if (argv.p) {
-//		console.log(argv.p);
-//	}
-
-	// if (argv.c) {
-	// 	chainReadFromCache();
-	// } else {
-	// 	chainFetchAllFromServer();
-	// }
-
-//	if (valueExistsInObj(argv._, 'fetch')) {
-//		chainFetchAllFromServer();
-//	} else if (valueExistsInObj(argv._, 'temp')) {
-//		chainTemp();
-//	} else if (argv.c) {
-//		chainReadFromCache();
-//	} else {
-//		console.dir(argv.c);
-//		lrException('No valid argument');
-//	}
-}
-
-/** ************************************************************************ *\
- * 
- * SETTINGS
- * 
-\** ************************************************************************ */
 
 /** ************************************************************************ *\
  * 
@@ -427,13 +433,27 @@ function saveStructuresAndTemplatesToFile(e) {
 	var filePath;
 	var fileContent;
 	var outCounter = {};
+
 	for (i = 0; i < e.length; ++i) {
 		if (globalClassNameIdsById.hasOwnProperty(e[i].classNameId)) {
 
 			// Figure out what kind of data we're dealing with and get a filename/path and the content.
 			if (e[i].hasOwnProperty('storageType') && e[i].hasOwnProperty('xsd')) {
-				filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
+				
 				fileContent = e[i].xsd;
+
+				// Check 'type' if class is Document Metadata. Depending on type, set different save paths
+				if (globalClassNameIdsById[e[i].classNameId].type === 'PortletDocumentlibraryModelDLFileEntryMetadata') {
+					if (e[i].type === 1) {
+						filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + fixed.pathSlugDocumentTypes + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
+					} else {
+						filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + fixed.pathSlugMetadataSets + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
+					}
+				} else {
+					filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
+				}
+
+
 			} else if (e[i].hasOwnProperty('script') && e[i].hasOwnProperty('language')) {
 				filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + e[i].nameCurrentValue + '.' + e[i].language;
 				fileContent = e[i].script;
@@ -592,6 +612,15 @@ function getStructuresFromListOfSites() {
 
 	return getData('{"/ddmstructure/get-structures": {"groupIds": [' + sitesList.join() + ']}}').then(
 		function (e) {
+ 
+			// apa
+			// Remove every entry (only 1) with className 'PortletDocumentlibraryUtilRawMetadataProcessor'.
+			// This is a Liferay internal structure which is used to parse document metadata
+			// and display it in the Document and Media Portlet.
+			e = e.filter(function(entry) {
+				return entry.classNameId != globalClassNameIdsByName.PortletDocumentlibraryUtilRawMetadataProcessor.id;
+			});
+     
 			globalStructures = e;
 			saveToCache(globalStructures, fixed.cacheStructuresFilename);
 
