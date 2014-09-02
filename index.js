@@ -6,6 +6,12 @@
  *
  * TODO:
  *
+ * Add a connection check, the first thing you do, to make sure you can connect to server
+ *
+ *
+ * Make an option to not save structures which are Liferay default (unsure how to manage this)
+ *
+ *
  *	Since it's important that no templates/structures have the same name, create a function to 
  *  warn the user if some of the entities have the same name.
  *
@@ -65,12 +71,12 @@ var nprint		= require('node-print');
 var heading = clc.blue;
 
 // Localhost MOH
-var config = {
-	host:				'http://localhost:8080/api/jsonws/invoke',
-	username:			'test@liferay.com',
-	password:			'test',
-	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
-};
+// var config = {
+// 	host:				'http://localhost:8080/api/jsonws/invoke',
+// 	username:			'test@liferay.com',
+// 	password:			'test',
+// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
+// };
 
 // MOH
 // var config = {
@@ -90,12 +96,12 @@ var config = {
 // };
 
 // LOCALHOST CYGATE
-// var config = {
-// 	host:				'http://localhost:8080/api/jsonws/',
-// 	username:			'test@cygate.com',
-// 	password:			'test',
-// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
-// };
+var config = {
+	host:				'http://localhost:8080',
+	username:			'test@cygate.com',
+	password:			'test',
+	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
+};
 
 
 
@@ -124,7 +130,9 @@ var fixed = {
 	txtWorking:							'Working...',
 
 	pathSlugDocumentTypes:				'document_types',
-	pathSlugMetadataSets:				'metadata_sets'
+	pathSlugMetadataSets:				'metadata_sets',
+
+	apiPath:							'/api/jsonws/invoke'
 };
 
 
@@ -133,7 +141,7 @@ var globalClassNameIdsById = {};
 var globalClassNameIdsByName = {
 	PortletAssetModelAssetEntry: {
 		"filesPath": 'application_display_template/templates',
-		"friendlyName": 'Application Display Template (ADT)',
+		"friendlyName": 'Application Display Template (ADT)'
 	},
 	PortletDynamicdatamappingModelDDMStructure: {
 		"filesPath": 'journal/templates',
@@ -145,7 +153,7 @@ var globalClassNameIdsByName = {
 	},
 	PortletDocumentlibraryUtilRawMetadataProcessor: {
 		"filesPath": 'unknown',
-		"friendlyName": 'TODO Something with Document Metadata',
+		"friendlyName": 'TODO Something with Document Metadata'
 	},
 	PortletDynamicdatalistsModelDDLRecordSet: {
 		"filesPath": 'dynamic_data_lists/structures',
@@ -298,16 +306,22 @@ function whatToDoSwitch() {
 
 function mainSwitch(argv) {
 
-//	createProject();
-//	if (argv.p) {
-//		console.log(argv.p);
-//	}
 
-	if (argv.c) {
-		chainReadFromCache();
-	} else {
-		chainFetchAllFromServer();
-	}
+
+
+
+
+createProject();
+
+	// if (argv.p) {
+	// 	console.log(argv.p);
+	// }
+
+	// if (argv.c) {
+	// 	chainReadFromCache();
+	// } else {
+	// 	chainFetchAllFromServer();
+	// }
 
 //	if (valueExistsInObj(argv._, 'fetch')) {
 //		chainFetchAllFromServer();
@@ -329,27 +343,25 @@ function mainSwitch(argv) {
 
 function createProject() {
 
-	//TODO: Add functionality so that the user can input more servers, e.g. local, dev1, prod1, prod2, etc.
+	var hostsOut = [];
+
 
 	console.log();
 	console.log(heading('Initializing a New Project'));
 	console.log('    Need some data to set up the project:');
 	console.log('    - Project Name. You\'ll use this every time you run the script. Pick something short.');
-	console.log('    - The URL, Username and Password to a Liferay Server (URL may be localhost)');
 	console.log('    - A path to where to save DDM files (structures, templates, etc) on your local machine ');
 	console.log('      This is the folder you want to check-in to your version control system.');
 	console.log();
 
-	var questions = [
+	var questionsProject = [
 		{
 			type: "input",
 			name: "projectName",
 			message: "Project (Short) Name",
 			validate: function( value ) {
-				var pass = value.match(/^[a-z]{1,8}$/i);
+				var pass = value.match(/^[a-z0-9]{1,8}$/i);
 				if (pass) {
-					// TODO, CHECK HERE IF FILE ALREADY EXIST
-
 					if (fs.existsSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + value.toLowerCase() + '.json')) {
 						return "Project named '" + value + "' already exists";
 					} else {
@@ -362,31 +374,77 @@ function createProject() {
 		},
 		{
 			type: "input",
-			name: "host",
-			message: "Liferay Host (URL):"
-		},
-		{
-			type: "input",
-			name: "username",
-			message: "Lifray Username"
-		},
-		{
-			type: "input",
-			name: "password",
-			message: "Liferay Password"
-		},
-		{
-			type: "input",
 			name: "filesPath",
 			message: "Path to files on this machine"
 			//TODO: CHECK IF PATH EXISTS, IF NOT, MAYBE ASK IF WE SHOULD CREATE IT
 		}
 	];
 
-	inquirer.prompt( questions, function(answers) {
-		//TODO: CONNECT TO SERVER AND SEE IF CONNECTION WORKS.
-		// MAYBE ASK "Could not connect, want to change host or user/pass"
-		fs.outputFileSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + answers.projectName.toLowerCase() + '.json', JSON.stringify(answers, null, "  "));
+	inquirer.prompt( questionsProject, function(answersProject) {
+
+		console.log();
+		console.log(heading('Add your first server'));
+		console.log('    The URL, Username and Password to a Liferay Server (URL may be localhost)');
+		console.log('    You may add more servers after this.');
+		console.log();
+
+		var questionsHosts = [
+			{
+				type: "input",
+				name: "host",
+				message: "Liferay Host (URL):"
+			},
+			{
+				type: "input",
+				name: "username",
+				message: "Lifray Username"
+			},
+			{
+				type: "input",
+				name: "password",
+				message: "Liferay Password"
+			},
+			{
+				type: "confirm",
+				name: "askAgain",
+				message: "Want to enter another server?"
+			}
+		];
+
+		function askForHosts() {
+			inquirer.prompt( questionsHosts, function(answersHosts) {
+
+				//TODO: CONNECT TO SERVER AND SEE IF CONNECTION WORKS.
+				// MAYBE ASK "Could not connect, want to change host or user/pass"
+
+				// Function for testing connection
+
+				// getData('{"/portal/get-build-number": {}}', 'http://localhost:8080', 'test@cygate.com', 'test')
+				// .then(function (e) {
+				// 	console.dir(e);
+				// }, function (e) {
+				// 	console.log('ERROR');
+				// 	console.log(e);
+				// });
+
+				delete answersHosts.askAgain;
+				hostsOut.push(answersHosts);
+
+				if ( answersHosts.askAgain ) {
+					console.log();
+					console.log(heading('Add your ') + clc.yellow(stringifyNumber(hostsOut.length + 1)) + heading(' server') );
+					console.log();
+					askForHosts();
+				} else {
+					answersProject.hosts = hostsOut;
+
+					fs.outputFileSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + answersProject.projectName.toLowerCase() + '.json', JSON.stringify(answersProject, null, "  "));
+				}
+
+			});
+		}
+
+		askForHosts();
 	});
 
 }
@@ -442,8 +500,8 @@ function saveStructuresAndTemplatesToFile(e) {
 				
 				fileContent = e[i].xsd;
 
-				// Check 'type' if class is Document Metadata. Depending on type, set different save paths
-				if (globalClassNameIdsById[e[i].classNameId].type === 'PortletDocumentlibraryModelDLFileEntryMetadata') {
+				// Check 'type' if class is Document Metadata. If so, depending on type, set different save paths for 'Document Type' and 'Metadata Set'
+				if (globalClassNameIdsById[e[i].classNameId].className === 'PortletDocumentlibraryModelDLFileEntryMetadata') {
 					if (e[i].type === 1) {
 						filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + fixed.pathSlugDocumentTypes + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
 					} else {
@@ -587,7 +645,7 @@ function getClassNameIds() {
 					globalClassNameIdsById[globalClassNameIdsByName[classNames[x]].id] = {
 						"friendlyName": globalClassNameIdsByName[classNames[x]].friendlyName,
 						"filesPath": globalClassNameIdsByName[classNames[x]].filesPath,
-						"type": classNames[x]
+						"className": classNames[x]
 					};
 				}
 
@@ -613,10 +671,10 @@ function getStructuresFromListOfSites() {
 	return getData('{"/ddmstructure/get-structures": {"groupIds": [' + sitesList.join() + ']}}').then(
 		function (e) {
  
-			// apa
-			// Remove every entry (only 1) with className 'PortletDocumentlibraryUtilRawMetadataProcessor'.
-			// This is a Liferay internal structure which is used to parse document metadata
-			// and display it in the Document and Media Portlet.
+			// Remove every entry (therer is only 1) with className 
+			// 'PortletDocumentlibraryUtilRawMetadataProcessor'. 
+			// This is a Liferay internal structure which is used to parse 
+			// document metadata and display it in the Document and Media Portlet.
 			e = e.filter(function(entry) {
 				return entry.classNameId != globalClassNameIdsByName.PortletDocumentlibraryUtilRawMetadataProcessor.id;
 			});
@@ -640,6 +698,16 @@ function getStructuresFromListOfSites() {
  * Bits 'n' Pieces
  * 
 \** ************************************************************************ */
+
+
+function stringifyNumber(n) {
+	var special = ['zeroth','first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelvth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth'];
+	var deca = ['twent', 'thirt', 'fourt', 'fift', 'sixt', 'sevent', 'eight', 'ninet'];
+	if (n < 20) return special[n];
+	if (n%10 === 0) return deca[Math.floor(n/10)-2] + 'ieth';
+	return deca[Math.floor(n/10)-2] + 'y-' + special[n%10];
+}
+
 
 function clearCache() {
 	fs.removeSync(fixed.cacheFolder);
@@ -668,34 +736,61 @@ function valueExistsInObj(haystack, needle) {
 	}
 }
 
-function getData(api){
+function getData(api, lrHost, lrUser, lrPass){
 
 	cli.spinner(clc.blue(fixed.txtWorking));
 
 	var deferred = Q.defer();
+	var errStr;
 
-	writeToScreen('Requesting data (from server ' + config.host + '):\n' + api , SEVERITY_DEBUG, SCREEN_PRINT_INFO);
+	lrHost = typeof lrHost !== 'undefined' ? lrHost : config.host;
+	lrUser = typeof lrUser !== 'undefined' ? lrUser : config.username;
+	lrPass = typeof lrPass !== 'undefined' ? lrPass : config.password;
+
+	lrHost = lrHost + fixed.apiPath;
+
+	writeToScreen('Requesting data (from server ' + lrHost + '):\n' + api , SEVERITY_DEBUG, SCREEN_PRINT_INFO);
 	var lrResException;
 
 	request
-		.post(config.host)
+		.post(lrHost)
 		.set('Content-Type', 'application/json')
-		.auth(config.username, config.password)
+		.auth(lrUser, lrPass)
 		.send(api)
-		.end(function(res){
+		.end(function(err, res){
+
+			cli.spinner('', true);
+
+			if (err) {
+				if (err.code === 'ENOTFOUND') { errStr = 'Host not found'; }
+				else if (err.code === 'ECONNREFUSED') { errStr = 'Connection refused'; }
+				else { errStr = 'Unknown error: ' + JSON.stringify(err); }
+				return deferred.reject(errStr);
+			}
+
 			if (res.ok) {
 				if(isJson(res.text)) {
 					if(res.body.hasOwnProperty('exception')){
-						deferred.reject(res.body.exception);
+						if(res.body.exception === 'Authenticated access required') {
+							deferred.reject('Could not authenticate (check username/password)');
+						} else {
+							deferred.reject(res.body.exception);
+						}
+
 					} else {
-						cli.spinner('', true);
 						deferred.resolve(res.body);
 					}
 				} else {
 					deferred.reject('Connected to server but response is not JSON');
 				}
 			} else {
-				deferred.reject(res.text);
+
+				if(res.statusCode == '404') { errStr = '(Not Found)'; }
+				else { errStr =''; }
+
+				errStr = 'Error ' + res.statusCode + ' ' + errStr;
+
+				deferred.reject(errStr);
 			}
 		});
 	return deferred.promise;
