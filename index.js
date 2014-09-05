@@ -54,9 +54,10 @@
 var request		= require('superagent');
 var Q			= require('q');
 var fs			= require('fs-extra');
+//var Promise		= require('bluebird');
+var glob		= require("glob");
 
 var clc			= require('cli-color');
-var Promise		= require('bluebird');
 
 var _			= require('underscore');
 
@@ -68,7 +69,10 @@ var nprint		= require('node-print');
 
 
 
+
 var heading = clc.blue;
+
+var config = {};
 
 // Localhost MOH
 // var config = {
@@ -96,12 +100,12 @@ var heading = clc.blue;
 // };
 
 // LOCALHOST CYGATE
-var config = {
-	host:				'http://localhost:8080',
-	username:			'test@cygate.com',
-	password:			'test',
-	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
-};
+// var config = {
+// 	host:				'http://localhost:8080',
+// 	username:			'test@cygate.com',
+// 	password:			'test',
+// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
+// };
 
 
 
@@ -177,20 +181,24 @@ var globalClassNameIdsByName = {
 	}
 };
 
-
+var stepping = {
+	hasProject: false,
+	hasServer: false
+};
 
 
 // Debug things
-var debugLevel			= 0;
+var debugLevel				= 0;
 
-var SEVERITY_NORMAL		= 0;
-var SEVERITY_DEBUG		= -1;
-var SCREEN_PRINT_INFO	= 0;
-var SCREEN_PRINT_SAVE	= 1;
-var SCREEN_PRINT_ERROR	= 2;
+var SEVERITY_NORMAL			= 0;
+var SEVERITY_DEBUG			= -1;
+var SCREEN_PRINT_INFO		= 0;
+var SCREEN_PRINT_SAVE		= 1;
+var SCREEN_PRINT_ERROR		= 2;
+var SCREEN_PRINT_HEADING	= 3;
 
 
-mainSwitch(argv);
+mainSwitch();
 
 /** ************************************************************************ *\
  * 
@@ -304,14 +312,25 @@ function whatToDoSwitch() {
 
 }
 
-function mainSwitch(argv) {
+function saveArgs() {
+	if (argv.hasOwnProperty('p')) {
+		if (argv.p.length > 0) { stepping.hasProject = true; }
+	}
+
+	if (argv.hasOwnProperty('s')) {
+		if (argv.s.length > 0) { stepping.hasServer = true; }
+	}
+}
+
+function mainSwitch() {
+
+	Q.resolve()
+	.then(saveArgs)
+	.then(selectProject)
+	.done(doneFulfilled, doneRejected);
 
 
-
-
-
-
-createProject();
+//createProject();
 
 	// if (argv.p) {
 	// 	console.log(argv.p);
@@ -335,119 +354,7 @@ createProject();
 //	}
 }
 
-/** ************************************************************************ *\
- * 
- * SETTINGS
- * 
-\** ************************************************************************ */
 
-function createProject() {
-
-	var hostsOut = [];
-
-
-	console.log();
-	console.log(heading('Initializing a New Project'));
-	console.log('    Need some data to set up the project:');
-	console.log('    - Project Name. You\'ll use this every time you run the script. Pick something short.');
-	console.log('    - A path to where to save DDM files (structures, templates, etc) on your local machine ');
-	console.log('      This is the folder you want to check-in to your version control system.');
-	console.log();
-
-	var questionsProject = [
-		{
-			type: "input",
-			name: "projectName",
-			message: "Project (Short) Name",
-			validate: function( value ) {
-				var pass = value.match(/^[a-z0-9]{1,8}$/i);
-				if (pass) {
-					if (fs.existsSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + value.toLowerCase() + '.json')) {
-						return "Project named '" + value + "' already exists";
-					} else {
-						return true;
-					}
-				} else {
-					return "Project name must be maximum 10 characters and only contain A-Z, 0-9";
-				}
-			}
-		},
-		{
-			type: "input",
-			name: "filesPath",
-			message: "Path to files on this machine"
-			//TODO: CHECK IF PATH EXISTS, IF NOT, MAYBE ASK IF WE SHOULD CREATE IT
-		}
-	];
-
-	inquirer.prompt( questionsProject, function(answersProject) {
-
-		console.log();
-		console.log(heading('Add your first server'));
-		console.log('    The URL, Username and Password to a Liferay Server (URL may be localhost)');
-		console.log('    You may add more servers after this.');
-		console.log();
-
-		var questionsHosts = [
-			{
-				type: "input",
-				name: "host",
-				message: "Liferay Host (URL):"
-			},
-			{
-				type: "input",
-				name: "username",
-				message: "Lifray Username"
-			},
-			{
-				type: "input",
-				name: "password",
-				message: "Liferay Password"
-			},
-			{
-				type: "confirm",
-				name: "askAgain",
-				message: "Want to enter another server?"
-			}
-		];
-
-		function askForHosts() {
-			inquirer.prompt( questionsHosts, function(answersHosts) {
-
-				//TODO: CONNECT TO SERVER AND SEE IF CONNECTION WORKS.
-				// MAYBE ASK "Could not connect, want to change host or user/pass"
-
-				// Function for testing connection
-
-				// getData('{"/portal/get-build-number": {}}', 'http://localhost:8080', 'test@cygate.com', 'test')
-				// .then(function (e) {
-				// 	console.dir(e);
-				// }, function (e) {
-				// 	console.log('ERROR');
-				// 	console.log(e);
-				// });
-
-				delete answersHosts.askAgain;
-				hostsOut.push(answersHosts);
-
-				if ( answersHosts.askAgain ) {
-					console.log();
-					console.log(heading('Add your ') + clc.yellow(stringifyNumber(hostsOut.length + 1)) + heading(' server') );
-					console.log();
-					askForHosts();
-				} else {
-					answersProject.hosts = hostsOut;
-
-					fs.outputFileSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + answersProject.projectName.toLowerCase() + '.json', JSON.stringify(answersProject, null, "  "));
-				}
-
-			});
-		}
-
-		askForHosts();
-	});
-
-}
 
 /** ************************************************************************ *\
  * 
@@ -695,10 +602,404 @@ function getStructuresFromListOfSites() {
 
 /** ************************************************************************ *\
  * 
+ * CREATE / SELECT PROJECT
+ * 
+\** ************************************************************************ */
+
+function selectProject() {
+
+	if (stepping.hasProject) {
+		// If project is supplied in arguments
+		var projectSettingsPath = fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + argv.p.toLowerCase() + '.json';
+		if (fs.existsSync(projectSettingsPath)) {
+			loadProject(argv.p.toLowerCase() + '.json');
+		} else {
+			lrException('Project \'' + argv.p + '\' does not exist.');
+		}
+
+	} else {
+		// If project is not supploed in arguments
+		var globOptions = {
+			cwd: fixed.settingsFolder + '/' + fixed.projectsFolder
+		};
+
+		glob('*.json', globOptions, function (err, files) {
+			if(err) {
+				lrException(err);
+			}
+
+			if (files.length === 0) {
+				console.log();
+				console.log(heading('Looks like it\'s the first time you run this App'));
+				console.log();
+
+				inquirer.prompt([{
+					type: "list",
+					name: "proceed",
+					message: "What do you want to do?",
+					choices: [
+						{
+							name: 'Create a new project',
+							value: 'new'
+						},
+						{
+							name: 'Quit',
+							value: 'quit'
+						}
+					]
+				}
+				], function( answers ) {
+					if (answers.proceed === 'new') {
+						createProject();
+					}
+				});
+
+
+			} else {
+				var projectName;
+				var projects = [];
+				for (var i = 0; i < files.length; ++i) {
+					projectName = filenameAndPathToFilename(files[i]);
+					projects.push({
+						name: projectName,
+						value: files[i]
+					});
+				}
+
+				projects.push(new inquirer.Separator());
+				projects.push({
+					name: "Create new project",
+					value: "new"
+				});
+
+				inquirer.prompt([{
+					type: "list",
+					name: "selectProject",
+					message: "Which project do you want to work with?",
+					choices: projects
+				}
+				], function(answers) {
+					if (answers.selectProject === 'new') {
+						createProject();
+					} else {
+						loadProject(answers.selectProject);
+					}
+				});
+
+			}
+
+		});
+
+	}
+		
+}
+
+function loadProject(projectJson) {
+	fs.readJson(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + projectJson, function(er, project) {
+		if(er) {
+			lrException(er);
+		}
+
+		var hosts = [];
+
+		try {
+			config.filesFolder = project.filesPath;
+			
+			// Check if user supplied a project as an argument or if we should present a gui.
+			if (stepping.hasProject) {
+				if (project.hosts.length === 1) {
+					// If user supplied a project and there's only one server in the config
+					// load that config
+					config.host			= project.hosts[0].host;
+					config.username		= project.hosts[0].username;
+					config.password		= project.hosts[0].password;
+				} else {
+					// If the user supplied a project but there's more than one,
+					// server in the config file, check if the user also supplied an
+					// argument for which server to use.
+					if (stepping.hasServer === true) {
+						var currentServer = project.hosts.filter(function(server) {
+							return server.name === argv.s;
+						});
+
+						if (currentServer.length > 0) {
+							config.host			= currentServer[0].host;
+							config.username		= currentServer[0].username;
+							config.password		= currentServer[0].password;
+						} else {
+							lrException('Server \'' + argv.s + '\' does not exist');
+						}
+					} else {
+						lrException('If a project (-p) with more than one server is supplied\nyou need to supply a server (-s) as well');
+					}
+
+				}
+			} else {
+				if (project.hosts.length === 1) {
+					config.host			= project.hosts[0].host;
+					config.username		= project.hosts[0].username;
+					config.password		= project.hosts[0].password;
+				} else {
+					for (var i = 0; i < project.hosts.length; ++i) {
+						hosts.push({
+							name: project.hosts[i].name,
+							value: {
+								host: project.hosts[i].host,
+								username: project.hosts[i].username,
+								password: project.hosts[i].password
+							}
+						});
+					}
+
+					inquirer.prompt([{
+						type: "list",
+						name: "selectHosts",
+						message: "Which host do you want to work with?",
+						choices: hosts
+					}
+					], function(answers) {
+						config.host			= answers.host;
+						config.username		= answers.username;
+						config.password		= answers.password;
+					});
+				}
+			}
+
+		} catch(catchErr) {
+			lrException('Could not understand content of config file ' + fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + projectJson);
+		}
+
+	});
+}
+
+function createProject() {
+
+	var hostsOut = [];
+	var retValue = true;
+
+	console.log();
+	console.log(heading('Initializing a New Project'));
+	console.log('    Need some data to set up the project:');
+	console.log('    - Project Name. You\'ll use this every time you run the script. Pick something short.');
+	console.log('    - A path to where to save DDM files (structures, templates, etc) on your local machine ');
+	console.log('      This is the folder you want to check-in to your version control system.');
+	console.log();
+
+	// Define Project Questions
+	var questionsProject = [
+		{
+			type: "input",
+			name: "projectName",
+			message: "Project Short Name",
+			validate: function( value ) {
+				var pass = value.match(/^[a-z0-9\-]{1,15}$/i);
+				if (pass) {
+					if (fs.existsSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + value.toLowerCase() + '.json')) {
+						return "Project named '" + value + "' already exists";
+					} else {
+						return true;
+					}
+				} else {
+					return "Project name must be maximum 15 characters and only contain alfanumeric characters and underscore";
+				}
+			},
+			filter: function(value) {
+				return value.trim();
+			}
+		},
+		{
+			type: "input",
+			name: "filesPath",
+			message: "Path to files on this machine",
+			filter: function(value) {
+				return removeTrailingSlash(value);
+			}
+		}
+	];
+
+	// Ask Project Questions
+	inquirer.prompt( questionsProject, function(answersProject) {
+
+		console.log();
+		console.log(heading('Add your first server'));
+		console.log('    The URL, Username and Password to a Liferay Server (URL may be http://localhost)');
+		console.log('    You may add more servers after this.');
+		console.log();
+
+		// Define Hosts Questions
+		var questionsHosts = [
+			{
+				type: "input",
+				name: "name",
+				message: "Host Name (e.g 'prod1' or 'local-dev'):",
+				validate: function( value ) {
+					var pass = value.match(/^[a-z0-9\-]{1,15}$/i);
+					if (pass) {
+						retValue = true;
+						for (var i = 0; i < hostsOut.length; i++) {
+							if (hostsOut[i].name.toLowerCase() === value.toLowerCase()) {
+								retValue = 'Host name already exists, choose another one';
+							}
+						}
+						return retValue;
+					} else {
+						return "Host name must be maximum 15 characters and only contain alfanumeric characters and underscore";
+					}
+				},
+				filter: function(value) {
+					return value.trim();
+				}
+			},
+			{
+				type: "input",
+				name: "host",
+				message: "Liferay Host (URL):",
+				filter: function(value) {
+					return removeTrailingSlash(value.trim());
+				}
+			},
+			{
+				type: "input",
+				name: "username",
+				message: "Lifray Username",
+				filter: function(value) {
+					return value.trim();
+				}
+			},
+			{
+				type: "input",
+				name: "password",
+				message: "Liferay Password",
+				filter: function(value) {
+					return value.trim();
+				}
+			}
+		];
+
+		// Ask Hosts Questions
+		function askForHosts() {
+			inquirer.prompt(questionsHosts, function(answersHosts) {
+
+				// Check if connection works
+				var deferred = Q.defer();
+				writeToScreen('Testing connection', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+				getData('{"/portal/get-build-number": {}}', answersHosts.host, answersHosts.username, answersHosts.password)
+				.then(function (e) {
+					writeToScreen('Connection okay!', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+					// Resolve Promise if connection Works
+					deferred.resolve();
+				}, function (e) {
+					// If connection didn't work, ask if user want's to save it anyway.
+					writeToScreen('Could not establish connection (' + e + ')', SEVERITY_NORMAL, SCREEN_PRINT_ERROR);
+
+					inquirer.prompt([{
+						type: "list",
+						name: "proceed",
+						message: "What do you want to do?",
+						choices: [
+							{
+								name: 'Re-enter the server information',
+								value: 'reenter'
+							},
+							{
+								name: 'Save configuration, even though connection failed',
+								value: 'save'
+							}
+						]
+					}
+					], function( answers ) {
+						// Check if user wanted to re-enter the information of save it anyways
+						if (answers.proceed === 'reenter') {
+							// If the user wants to re-enter the information,
+							// set the current answers as default answers for the new questions,
+							// and then ask the new question.
+							writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+							writeToScreen('Previously entered values within parentheses\nJust press <enter> if you want to leave the field unchanged', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+							writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+
+							questionsHosts[0].default = answersHosts.name;
+							questionsHosts[1].default = answersHosts.host;
+							questionsHosts[2].default = answersHosts.username;
+							questionsHosts[3].default = answersHosts.password;
+
+							askForHosts();
+						} else {
+							// If the user wants to save the information, even though a connection
+							// couldn't be made, just resolve this and go to next step.
+							deferred.resolve();
+						}
+					});
+
+					return deferred.promise;
+
+
+				})
+				.done(function (e) {
+					// Ask if the user wants to add another server.
+					inquirer.prompt([{
+						type: "list",
+						name: "askAgain",
+						message: "Do you want to enter another server",
+						choices: [
+							{
+								name: 'Yes',
+								value: true
+							},
+							{
+								name: 'No',
+								value: false
+							}
+						]
+					}
+					], function(answersAskAgain) {
+						// Save the just added server to array
+						hostsOut.push(answersHosts);
+
+						if (answersAskAgain.askAgain) {
+							// If the user wants to add another server
+							questionsHosts.forEach(function(obj){ delete obj.default; });
+							console.log();
+							console.log(heading('Add your ') + clc.yellow(stringifyNumber(hostsOut.length + 1)) + heading(' server') );
+							console.log();
+							askForHosts();
+						} else {
+							// If the user don't want to add another server, save the configuration to file
+							// and send the user to the 'Select Projects' screen.
+							answersProject.hosts = hostsOut;
+							fs.outputFileSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + answersProject.projectName.toLowerCase() + '.json', JSON.stringify(answersProject, null, "  "));
+							writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
+							writeToScreen('Project created!', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
+							writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
+							selectProject();
+						}
+					});
+				});
+			});
+		}
+		// ask for Hosts the first time.
+		askForHosts();
+	});
+}
+
+/** ************************************************************************ *\
+ * 
  * Bits 'n' Pieces
  * 
 \** ************************************************************************ */
 
+function removeTrailingSlash(str) {
+	if (str.charAt(str.length - 1) == "/") str = str.substr(0, str.length - 1);
+	return str;
+}
+
+function filenameAndPathToFilename(path, showExtension) {
+	showExtension = typeof showExtension !== 'undefined' ? showExtension : false;
+	path = path.substr(path.lastIndexOf('/')+1);
+	if (!showExtension && path.indexOf('.') > 0) {
+		path = path.substr(0, path.lastIndexOf('.'));
+	}
+	return path;
+}
 
 function stringifyNumber(n) {
 	var special = ['zeroth','first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelvth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth'];
@@ -717,9 +1018,11 @@ function writeToScreen(str, severity, type) {
 
 	if (severity >= debugLevel) {
 		if (type == SCREEN_PRINT_INFO) {
-			console.log(clc.blue(str));
+			console.log(str);
 		} else if (type == SCREEN_PRINT_SAVE) {
 			console.log(clc.green(str));
+		} else if (type == SCREEN_PRINT_HEADING) {
+			console.log(clc.blue(str));			
 		} else if (type == SCREEN_PRINT_ERROR) {
 			console.log(clc.red(str));
 		} else {
@@ -764,6 +1067,7 @@ function getData(api, lrHost, lrUser, lrPass){
 			if (err) {
 				if (err.code === 'ENOTFOUND') { errStr = 'Host not found'; }
 				else if (err.code === 'ECONNREFUSED') { errStr = 'Connection refused'; }
+				else if (err.code === 'EHOSTUNREACH') { errStr = 'No route to host'; }
 				else { errStr = 'Unknown error: ' + JSON.stringify(err); }
 				return deferred.reject(errStr);
 			}
@@ -806,8 +1110,22 @@ function doneRejected(e) {
 }
 
 function lrException(e) {
+
+	var errCode = "";
+	if(typeof e === 'object') {
+		try {
+			errCode = e.code;
+		} catch(thisErr) {
+			errStr = JSON.stringify(e);
+		}
+	} else {
+		errStr = e;
+	}
+
+	if (errCode === 'ENOENT') { errStr = 'No such file or folder'; }
+
 	writeToScreen('Error', SEVERITY_NORMAL, SCREEN_PRINT_ERROR);
-	writeToScreen(e, SEVERITY_NORMAL, SCREEN_PRINT_ERROR);
+	writeToScreen(errStr, SEVERITY_NORMAL, SCREEN_PRINT_ERROR);
 	process.exit();
 }
 
