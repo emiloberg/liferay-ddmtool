@@ -6,25 +6,19 @@
  *
  * TODO:
  *
- * Add a connection check, the first thing you do, to make sure you can connect to server
  *
+ * Add option to save files in a folder per group. E.g.
+ *		/global/application_display_template/asset_publisher/file.ftl
+ *		/my sub group/application_display_template/asset_publisher/file.ftl 
  *
- * Make an option to not save structures which are Liferay default (unsure how to manage this)
+ * Make an option to not save structures which are Liferay default (maybe blacklist some template keys)
  *
  *
  *	Since it's important that no templates/structures have the same name, create a function to 
- *  warn the user if some of the entities have the same name.
+ *  warn the user if some of the entities have the same name. Also make sure that the name of the DDMs 
+ *  don't contain any non-safe characters (such as slashes).
  *
  *	Get all Workflows aswell.
- *
- *
- *
- *	Current function for finding out if the app was started with a certain arguments is not
- *	that good. It will search for a key in the arguments-object and if that key exists - 
- *	do something. So far so god. However, the search function is greedy. If object contains
- *	value 'foobar', a search for 'foo' or 'bar' vill return true.
- *	Maybe just replace it with the regular process.argv.slice(2) and search that array
- *	with indexOf, or underscore's: _.indexOf(array, value) 
  *
  */
 
@@ -54,7 +48,6 @@
 var request		= require('superagent');
 var Q			= require('q');
 var fs			= require('fs-extra');
-//var Promise		= require('bluebird');
 var glob		= require("glob");
 
 var clc			= require('cli-color');
@@ -144,9 +137,35 @@ var globalClassNameIdsById = {};
 
 var globalClassNameIdsByName = {
 	PortletAssetModelAssetEntry: {
-		"filesPath": 'application_display_template/templates',
-		"friendlyName": 'Application Display Template (ADT)'
+		"filesPath": 'application_display_template/asset_publisher',
+		"friendlyName": 'ADT - Asset Publisher'
 	},
+	PortletBlogsModelBlogsEntry: {
+		"filesPath": 'application_display_template/blogs',
+		"friendlyName": 'ADT - Blogs'
+	},
+
+	PortletAssetModelAssetCategory: {
+		"filesPath": 'application_display_template/categories_navigation',
+		"friendlyName": 'ADT - Categories Navigation'
+	},
+	PortalKernelRepositoryModelFileEntry: {
+		"filesPath": 'application_display_template/documents_and_media',
+		"friendlyName": 'ADT - Documents and Media'
+	},
+	PortalModelLayoutSet: {
+		"filesPath": 'application_display_template/site_map',
+		"friendlyName": 'ADT - Site Map'
+	},
+	PortletAssetModelAssetTag: {
+		"filesPath": 'application_display_template/tags_navigation',
+		"friendlyName": 'ADT - Tags Navigation'
+	},
+	PortletWikiModelWikiPage: {
+		"filesPath": 'application_display_template/wiki',
+		"friendlyName": 'ADT - Wiki'
+	},
+
 	PortletDynamicdatamappingModelDDMStructure: {
 		"filesPath": 'journal/templates',
 		"friendlyName": 'Journal Article Template'
@@ -181,10 +200,16 @@ var globalClassNameIdsByName = {
 	}
 };
 
-var stepping = {
+var bolArgs = {
+	doSilently: false,
 	hasProject: false,
-	hasServer: false
+	hasServer: false,
+	loadFromCache: false,
+	doSaveAllFilesToDisk: false,
+	doShowHelp: false
 };
+
+var helpArgs = {};
 
 
 // Debug things
@@ -197,8 +222,60 @@ var SCREEN_PRINT_SAVE		= 1;
 var SCREEN_PRINT_ERROR		= 2;
 var SCREEN_PRINT_HEADING	= 3;
 
+// Steps
+var STEP_START							= 1;
+var STEP_JUST_LOADED_CONFIG				= 2;
+var STEP_JUST_READ_ALL_FROM_SERVER		= 3;
+var STEP_JUST_SAVED_ALL_FILES_TO_DISK	= 4;
 
-mainSwitch();
+stepping(STEP_START);
+
+
+/** ************************************************************************ *\
+ * 
+ * MAIN MENU
+ * 
+\** ************************************************************************ */
+
+
+function showMainMenu() {
+
+	if (bolArgs.doSaveAllFilesToDisk) {
+		saveEverythingToFile();
+	} else {
+		if (!bolArgs.doSilently) {
+			console.log('');
+			inquirer.prompt([
+				{
+					type: "list",
+					name: "mainMenu",
+					message: "What do you want to do?",
+					choices: [
+						{
+							name: 'Save all files to disk',
+							value: 'saveAllFilesToDisk'
+						},
+						{
+							name: 'TODO Upload Everything',
+							value: 'uploadAllFilesToServer'
+						},
+						new inquirer.Separator(),
+						{
+							name: 'Quit',
+							value: 'quit'
+						}
+					],
+				}
+				], function( answers ) {
+					if (answers.mainMenu === 'saveAllFilesToDisk') {
+						saveEverythingToFile();
+					} else {
+						console.log('Bye bye!');
+					}
+				});
+		}
+	}
+}
 
 /** ************************************************************************ *\
  * 
@@ -214,146 +291,114 @@ function chainFetchAllFromServer() {
 	.then(getCompanyGroupFromCompanyId)
 	.then(getStructuresFromListOfSites)
 	.then(getTemplates)
-	.then(saveEverythingToFile)
-
-	.done(whatToDoSwitch, doneRejected);
+	.done(function () {
+		stepping(STEP_JUST_READ_ALL_FROM_SERVER);
+	}, doneRejected);
 }
 
 function chainReadFromCache() {
 	writeToScreen('Reading data from Cache', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 	Q.resolve()
 	.then(getAllCache)
-	.then(saveEverythingToFile)
-	.done(whatToDoSwitch, doneRejected);
-}
-
-/** ************************************************************************ *\
- * 
- * TODO: TEMPORARY, REMOVE LATER
- * 
-\** ************************************************************************ */
-function chainTemp() {
-	Q.resolve()
-	.then(getTemp)
-	.then(handleGetTemp)
-	.done(doneFulfilled, doneRejected);
-}
-
-
-function getTemp() {
-	return getData('{"/ddmtemplate/get-templates": {"groupId": 10195, "classNameId": 10083}}');
-}
-
-
-function handleGetTemp(e){
-	var resp = JSON.parse(e);
-	console.dir(e);
-}
-
-
-/** ************************************************************************ *\
- * 
- * MAIN SWITCH
- * 
-\** ************************************************************************ */
-
-
-function showMainMenu() {
-	inquirer.prompt([
-		{
-			type: "list",
-			name: "theme",
-			message: "XWhat do you want to do?",
-			choices: [
-				"Order a pizza",
-				"Make a reservation",
-				new inquirer.Separator(),
-				"Ask opening hours",
-				"Talk to the receptionnist"
-				]
-		},
-		{
-			type: "list",
-			name: "size",
-			message: "What size do you need",
-			choices: [ "Jumbo", "Large", "Standard", "Medium", "Small", "Micro" ],
-			filter: function( val ) { return val.toLowerCase(); }
-		}
-		], function( answers ) {
-			console.log( JSON.stringify(answers, null, "  ") );
-		});
-}
-
-function whatToDoSwitch() {
-
-	// inquirer.prompt([
-	// 	{
-	// 		type: "list",
-	// 		name: "theme",
-	// 		message: "XWhat do you want to do?",
-	// 		choices: [
-	// 			"Order a pizza",
-	// 			"Make a reservation",
-	// 			new inquirer.Separator(),
-	// 			"Ask opening hours",
-	// 			"Talk to the receptionnist"
-	// 			]
-	// 	},
-	// 	{
-	// 		type: "list",
-	// 		name: "size",
-	// 		message: "What size do you need",
-	// 		choices: [ "Jumbo", "Large", "Standard", "Medium", "Small", "Micro" ],
-	// 		filter: function( val ) { return val.toLowerCase(); }
-	// 	}
-	// 	], function( answers ) {
-	// 		console.log( JSON.stringify(answers, null, "  ") );
-	// 	});
-
+	.done(function () {
+		stepping(STEP_JUST_READ_ALL_FROM_SERVER);
+	}, doneRejected);
 }
 
 function saveArgs() {
-	if (argv.hasOwnProperty('p')) {
-		if (argv.p.length > 0) { stepping.hasProject = true; }
+
+	// This does not need to be here. It's just here because it's easier to
+	// update when arguments are updated.
+	helpArgs = [
+		{
+			arg: '--project <project-name>',
+			help: 'Load a project'
+		},
+		{
+			arg: '--server <server-name>',
+			help: 'Load a server in project'
+		},
+		{
+			arg: '-c',
+			help: 'Use data from cache (and don\'t download it from server)'
+		},
+		{ arg: '', help: '' },
+		{
+			arg: '-d',
+			help: 'Save all files to disk'
+		},
+		{ arg: '', help: '' },
+		{
+			arg: '-h, --help',
+			help: 'Show this help'
+		}
+	];
+
+	if (argv.hasOwnProperty('project')) {
+		if (argv.project.length > 0) { bolArgs.hasProject = true; }
 	}
 
-	if (argv.hasOwnProperty('s')) {
-		if (argv.s.length > 0) { stepping.hasServer = true; }
+	if (argv.hasOwnProperty('server')) {
+		if (argv.server.length > 0) { bolArgs.hasServer = true;}
+	}
+
+	if (argv.hasOwnProperty('c')) {
+		bolArgs.loadFromCache = true;
+	}
+
+	if (argv.hasOwnProperty('d')) {
+		bolArgs.doSaveAllFilesToDisk = true;
+		bolArgs.doSilently = true;
+	}
+
+	if (argv.hasOwnProperty('h') || argv.hasOwnProperty('help')) {
+		bolArgs.doShowHelp = true;
+	}
+
+}
+
+/** ************************************************************************ *\
+ * 
+ * STEPPING THINGS
+ * 
+\** ************************************************************************ */
+
+function showHelp() {
+	//apa
+	// TODO - ADD HELP HERE
+	console.log();
+	console.log('This app may be runned with the following arguments:');
+	console.log();
+
+	for (var x = 0; x < helpArgs.length; ++x) {
+		nprint.pf('%30s   %10s', helpArgs[x].arg, helpArgs[x].help);
+	}
+
+}
+
+function stepping(step) {
+	if (bolArgs.doShowHelp) {
+		showHelp();
+	} else {
+		if (step === STEP_START) {
+			Q.resolve()
+			.then(saveArgs)
+			.then(selectProject);
+		} else if (step === STEP_JUST_LOADED_CONFIG) {
+			if (bolArgs.loadFromCache) {
+				chainReadFromCache();
+			} else {
+				chainFetchAllFromServer();
+			}
+		} else if (step === STEP_JUST_READ_ALL_FROM_SERVER ) {
+			showMainMenu();
+		} else if (step === STEP_JUST_SAVED_ALL_FILES_TO_DISK ) {
+			showMainMenu();
+		} else {
+			lrException('Unknown next step!');
+		}
 	}
 }
-
-function mainSwitch() {
-
-	Q.resolve()
-	.then(saveArgs)
-	.then(selectProject)
-	.done(doneFulfilled, doneRejected);
-
-
-//createProject();
-
-	// if (argv.p) {
-	// 	console.log(argv.p);
-	// }
-
-	// if (argv.c) {
-	// 	chainReadFromCache();
-	// } else {
-	// 	chainFetchAllFromServer();
-	// }
-
-//	if (valueExistsInObj(argv._, 'fetch')) {
-//		chainFetchAllFromServer();
-//	} else if (valueExistsInObj(argv._, 'temp')) {
-//		chainTemp();
-//	} else if (argv.c) {
-//		chainReadFromCache();
-//	} else {
-//		console.dir(argv.c);
-//		lrException('No valid argument');
-//	}
-}
-
 
 
 /** ************************************************************************ *\
@@ -389,9 +434,11 @@ function saveToCache(e, filename) {
  * 
 \** ************************************************************************ */
 function saveEverythingToFile() {
-	writeToScreen('Saving everything to file', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+	writeToScreen('Saving everything to disk', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 	saveStructuresAndTemplatesToFile(globalTemplates);
 	saveStructuresAndTemplatesToFile(globalStructures);
+	bolArgs.doSaveAllFilesToDisk = false;
+	stepping(STEP_JUST_SAVED_ALL_FILES_TO_DISK);
 }
 
 function saveStructuresAndTemplatesToFile(e) {
@@ -489,8 +536,19 @@ function getTemplates() {
 	var apiArr = [];
 
 	for (var i = 0; i < globalSites.length; ++i) {
+		// TODO - make this into a loop instead (define which structures are downloadable in globalClassNameIdsByName/Id )
+
+		// Journal Templates
 		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletAssetModelAssetEntry.id + '}}');
+
+		// ADTs
 		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletDynamicdatamappingModelDDMStructure.id + '}}');
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletBlogsModelBlogsEntry.id + '}}');
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletAssetModelAssetCategory.id + '}}');
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortalKernelRepositoryModelFileEntry.id + '}}');
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortalModelLayoutSet.id + '}}');
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletAssetModelAssetTag.id + '}}');
+		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletWikiModelWikiPage.id + '}}');
 	}
 
 	return getData('[' + apiArr.join() + ']').then(
@@ -514,9 +572,10 @@ function getTemplates() {
 
 function getClassNameIds() {
 	writeToScreen('Downloading id\'s', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+	// TODO - Make this into a loop instead
 	return getData('[' +
 		// Templates and Structures to be downloaded
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.asset.model.AssetEntry"}}, ' + //(10083) ADT
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.asset.model.AssetEntry"}}, ' + //(10083) ADT - AP
 		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.dynamicdatamapping.model.DDMStructure"}}, ' + // (10102) All Structures
 
 		// A structure can have one of these classNameId's:
@@ -529,7 +588,16 @@ function getClassNameIds() {
 		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.User"}}, ' + //(10005) User site
 		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Group"}}, ' + //(10001) Group
 		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Organization"}}, ' + //(10003) Organization
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Company"}}' + //(10025) Company (global)
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Company"}},' + //(10025) Company (global)
+
+		// ADT Templates (all but Aaset Publisher ADT which is defined on top of this list)
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.blogs.model.BlogsEntry"}}, ' + // (10007) ADT - Blogs
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.asset.model.AssetCategory"}}, ' + // (10081) ADT - Categories Navigation
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.kernel.repository.model.FileEntry"}}, ' + // (10423) ADT - Documents and Media
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.LayoutSet"}}, ' + // (10034) ADT - Site Map
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.asset.model.AssetTag"}}, ' + // (10085) ADT - Tags Navigation
+		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.wiki.model.WikiPage"}} ' + // (10016) ADT - Wiki
+
 		']').then(
 			function (e) {
 				globalClassNameIdsByName.PortletAssetModelAssetEntry.id =						e[0];
@@ -542,6 +610,13 @@ function getClassNameIds() {
 				globalClassNameIdsByName.PortalModelGroup.id =									e[7];
 				globalClassNameIdsByName.PortalModelOrganization.id =							e[8];
 				globalClassNameIdsByName.PortalModelCompany.id =								e[9];
+
+				globalClassNameIdsByName.PortletBlogsModelBlogsEntry.id =						e[10];
+				globalClassNameIdsByName.PortletAssetModelAssetCategory.id =					e[11];
+				globalClassNameIdsByName.PortalKernelRepositoryModelFileEntry.id =				e[12];
+				globalClassNameIdsByName.PortalModelLayoutSet.id =								e[13];
+				globalClassNameIdsByName.PortletAssetModelAssetTag.id =							e[14];
+				globalClassNameIdsByName.PortletWikiModelWikiPage.id =							e[15];
 				
 				saveToCache(globalClassNameIdsByName, fixed.cacheClassNameIdsByName);
 
@@ -608,13 +683,13 @@ function getStructuresFromListOfSites() {
 
 function selectProject() {
 
-	if (stepping.hasProject) {
+	if (bolArgs.hasProject) {
 		// If project is supplied in arguments
-		var projectSettingsPath = fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + argv.p.toLowerCase() + '.json';
+		var projectSettingsPath = fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + argv.project.toLowerCase() + '.json';
 		if (fs.existsSync(projectSettingsPath)) {
-			loadProject(argv.p.toLowerCase() + '.json');
+			loadProject(argv.project.toLowerCase() + '.json');
 		} else {
-			lrException('Project \'' + argv.p + '\' does not exist.');
+			lrException('Project \'' + argv.project + '\' does not exist.');
 		}
 
 	} else {
@@ -706,31 +781,33 @@ function loadProject(projectJson) {
 			config.filesFolder = project.filesPath;
 			
 			// Check if user supplied a project as an argument or if we should present a gui.
-			if (stepping.hasProject) {
+			if (bolArgs.hasProject) {
 				if (project.hosts.length === 1) {
 					// If user supplied a project and there's only one server in the config
 					// load that config
 					config.host			= project.hosts[0].host;
 					config.username		= project.hosts[0].username;
 					config.password		= project.hosts[0].password;
+					stepping(STEP_JUST_LOADED_CONFIG);
 				} else {
 					// If the user supplied a project but there's more than one,
 					// server in the config file, check if the user also supplied an
 					// argument for which server to use.
-					if (stepping.hasServer === true) {
+					if (bolArgs.hasServer === true) {
 						var currentServer = project.hosts.filter(function(server) {
-							return server.name === argv.s;
+							return server.name === argv.server;
 						});
 
 						if (currentServer.length > 0) {
 							config.host			= currentServer[0].host;
 							config.username		= currentServer[0].username;
 							config.password		= currentServer[0].password;
+							stepping(STEP_JUST_LOADED_CONFIG);
 						} else {
-							lrException('Server \'' + argv.s + '\' does not exist');
+							lrException('Server \'' + argv.server + '\' does not exist');
 						}
 					} else {
-						lrException('If a project (-p) with more than one server is supplied\nyou need to supply a server (-s) as well');
+						lrException('If a project (--project) with more than one server is supplied\nyou need to supply a server (--server) as well');
 					}
 
 				}
@@ -739,6 +816,7 @@ function loadProject(projectJson) {
 					config.host			= project.hosts[0].host;
 					config.username		= project.hosts[0].username;
 					config.password		= project.hosts[0].password;
+					stepping(STEP_JUST_LOADED_CONFIG);
 				} else {
 					for (var i = 0; i < project.hosts.length; ++i) {
 						hosts.push({
@@ -758,9 +836,11 @@ function loadProject(projectJson) {
 						choices: hosts
 					}
 					], function(answers) {
-						config.host			= answers.host;
-						config.username		= answers.username;
-						config.password		= answers.password;
+						config.host			= answers.selectHosts.host;
+						config.username		= answers.selectHosts.username;
+						config.password		= answers.selectHosts.password;
+
+						stepping(STEP_JUST_LOADED_CONFIG);
 					});
 				}
 			}
