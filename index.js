@@ -67,41 +67,6 @@ var heading = clc.blue;
 
 var config = {};
 
-// Localhost MOH
-// var config = {
-// 	host:				'http://localhost:8080/api/jsonws/invoke',
-// 	username:			'test@liferay.com',
-// 	password:			'test',
-// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
-// };
-
-// MOH
-// var config = {
-// 	host:				'http://15.126.227.132/api/jsonws/invoke',
-// 	username:			'superadmin',
-// 	password:			'icT@icT@1234',
-// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
-// };
-
-
-// CYGATE FI
-// var config = {
-// 	host:				'http://10.167.2.160:8280/api/jsonws/',
-// 	username:			'www.admin@cygate.fi',
-// 	password:			'www4dm1n',
-// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
-// };
-
-// LOCALHOST CYGATE
-// var config = {
-// 	host:				'http://localhost:8080',
-// 	username:			'test@cygate.com',
-// 	password:			'test',
-// 	filesFolder:		'/Users/emiloberg/Desktop/outputtest/new'
-// };
-
-
-
 // Globals
 var globalSites					= [];
 var globalSitesWithStructure	= [];
@@ -133,72 +98,105 @@ var fixed = {
 };
 
 
-var globalClassNameIdsById = {};
-
-var globalClassNameIdsByName = {
-	PortletAssetModelAssetEntry: {
-		"filesPath": 'application_display_template/asset_publisher',
-		"friendlyName": 'ADT - Asset Publisher'
+var globalClassNameIdsByName = [
+	{
+		filesPath: 'application_display_template/asset_publisher',
+		friendlyName: 'ADT - Asset Publisher',
+		clazz: 'com.liferay.portlet.asset.model.AssetEntry',
+		type: 'template',
+		getTemplate: true
 	},
-	PortletBlogsModelBlogsEntry: {
-		"filesPath": 'application_display_template/blogs',
-		"friendlyName": 'ADT - Blogs'
+	{
+		filesPath: 'application_display_template/blogs',
+		friendlyName: 'ADT - Blogs',
+		clazz: 'com.liferay.portlet.blogs.model.BlogsEntry',
+		type: 'template',
+		getTemplate: true
 	},
-
-	PortletAssetModelAssetCategory: {
-		"filesPath": 'application_display_template/categories_navigation',
-		"friendlyName": 'ADT - Categories Navigation'
+	{
+		filesPath: 'application_display_template/categories_navigation',
+		friendlyName: 'ADT - Categories Navigation',
+		clazz: 'com.liferay.portlet.asset.model.AssetCategory',
+		type: 'template',
+		getTemplate: true
 	},
-	PortalKernelRepositoryModelFileEntry: {
-		"filesPath": 'application_display_template/documents_and_media',
-		"friendlyName": 'ADT - Documents and Media'
+	{
+		filesPath: 'application_display_template/documents_and_media',
+		friendlyName: 'ADT - Documents and Media',
+		clazz: 'com.liferay.portal.kernel.repository.model.FileEntry',
+		type: 'template',
+		getTemplate: true
 	},
-	PortalModelLayoutSet: {
-		"filesPath": 'application_display_template/site_map',
-		"friendlyName": 'ADT - Site Map'
+	{
+		filesPath: 'application_display_template/site_map',
+		friendlyName: 'ADT - Site Map',
+		clazz: 'com.liferay.portal.model.LayoutSet',
+		type: 'template',
+		getTemplate: true
 	},
-	PortletAssetModelAssetTag: {
-		"filesPath": 'application_display_template/tags_navigation',
-		"friendlyName": 'ADT - Tags Navigation'
+	{
+		filesPath: 'application_display_template/tags_navigation',
+		friendlyName: 'ADT - Tags Navigation',
+		clazz: 'com.liferay.portlet.asset.model.AssetTag',
+		type: 'template',
+		getTemplate: true
 	},
-	PortletWikiModelWikiPage: {
-		"filesPath": 'application_display_template/wiki',
-		"friendlyName": 'ADT - Wiki'
+	{
+		filesPath: 'application_display_template/wiki',
+		friendlyName: 'ADT - Wiki',
+		clazz: 'com.liferay.portlet.wiki.model.WikiPage',
+		type: 'template',
+		getTemplate: true
 	},
-
-	PortletDynamicdatamappingModelDDMStructure: {
-		"filesPath": 'journal/templates',
-		"friendlyName": 'Journal Article Template'
+	{
+		filesPath: 'journal/templates',
+		friendlyName: 'Journal Article Template',
+		clazz: 'com.liferay.portlet.dynamicdatamapping.model.DDMStructure',
+		type: 'template',
+		getTemplate: true
 	},
-	PortletDocumentlibraryModelDLFileEntryMetadata: {
-		"filesPath": 'document_and_media',
-		"friendlyName": 'Document Types'
+	{
+		filesPath: 'journal/structures',
+		friendlyName: 'Journal Article Structure',
+		clazz: 'com.liferay.portlet.journal.model.JournalArticle',
+		type: 'structure'
 	},
-	PortletDocumentlibraryUtilRawMetadataProcessor: {
-		"filesPath": 'unknown',
-		"friendlyName": 'TODO Something with Document Metadata'
+	{
+		filesPath: 'document_and_media',
+		friendlyName: 'Document Types',
+		clazz: 'com.liferay.portlet.documentlibrary.model.DLFileEntryMetadata'
 	},
-	PortletDynamicdatalistsModelDDLRecordSet: {
-		"filesPath": 'dynamic_data_lists/structures',
-		"friendlyName": 'Dynamic Data List (DDL) Definition'
+	{
+		filesPath: 'internal',
+		friendlyName: 'Liferay Internal - RAW Metadata Processor',
+		clazz: 'com.liferay.portlet.documentlibrary.util.RawMetadataProcessor'
 	},
-	PortletJournalModelJournalArticle: {
-		"filesPath": 'journal/structures',
-		"friendlyName": 'Journal Article Structure'
+	{
+		filesPath: 'dynamic_data_lists/structures',
+		friendlyName: 'Dynamic Data List (DDL) Definition',
+		clazz: 'com.liferay.portlet.dynamicdatalists.model.DDLRecordSet'
 	},
-	PortalModelUser: {
-		"friendlyName": 'User site'
+	{
+		friendlyName: 'User site',
+		clazz: 'com.liferay.portal.model.User',
+		type: 'group'
 	},
-	PortalModelGroup: {
-		"friendlyName": 'Group'
+	{
+		friendlyName: 'Group',
+		clazz: 'com.liferay.portal.model.Group',
+		type: 'group'
 	},
-	PortalModelOrganization: {
-		"friendlyName": 'Organization'
+	{
+		friendlyName: 'Organization',
+		clazz: 'com.liferay.portal.model.Organization',
+		type: 'group'
 	},
-	PortalModelCompany: {
-		"friendlyName": 'Company (Global)'
+	{
+		friendlyName: 'Company (Global)',
+		clazz: 'com.liferay.portal.model.Company',
+		type: 'group'
 	}
-};
+];
 
 var bolArgs = {
 	doSilently: false,
@@ -276,6 +274,7 @@ function showMainMenu() {
 		}
 	}
 }
+
 
 /** ************************************************************************ *\
  * 
@@ -364,7 +363,6 @@ function saveArgs() {
 \** ************************************************************************ */
 
 function showHelp() {
-	//apa
 	// TODO - ADD HELP HERE
 	console.log();
 	console.log('This app may be runned with the following arguments:');
@@ -415,7 +413,6 @@ function getAllCache() {
 	globalStructures			= readFromCache(fixed.cacheStructuresFilename);
 	globalTemplates				= readFromCache(fixed.cacheTemplatesFilename);
 	globalClassNameIdsByName	= readFromCache(fixed.cacheClassNameIdsByName);
-	globalClassNameIdsById		= readFromCache(fixed.cacheClassNameIdsById);
 }
 
 function readFromCache(filename) {
@@ -442,51 +439,56 @@ function saveEverythingToFile() {
 }
 
 function saveStructuresAndTemplatesToFile(e) {
+	// apa
 	var filePath;
 	var fileContent;
 	var outCounter = {};
 
+	var idDLFileEntryMetadata = getClassNameIdFromClazz('com.liferay.portlet.documentlibrary.model.DLFileEntryMetadata');
+	var friendlyName;
+	var filesPath;
+
+
 	for (i = 0; i < e.length; ++i) {
-		if (globalClassNameIdsById.hasOwnProperty(e[i].classNameId)) {
+			filePath = config.filesFolder + '/' + getFilesPathFromClassNameId(e[i].classNameId);
 
 			// Figure out what kind of data we're dealing with and get a filename/path and the content.
 			if (e[i].hasOwnProperty('storageType') && e[i].hasOwnProperty('xsd')) {
 				
 				fileContent = e[i].xsd;
 
-				// Check 'type' if class is Document Metadata. If so, depending on type, set different save paths for 'Document Type' and 'Metadata Set'
-				if (globalClassNameIdsById[e[i].classNameId].className === 'PortletDocumentlibraryModelDLFileEntryMetadata') {
+				// If the class is DLFileEntryMetadata, then check 'type'. 
+				// Depending on type, set different save paths for 'Document Type' and 'Metadata Set'
+				if (e[i].classNameId === idDLFileEntryMetadata) {
 					if (e[i].type === 1) {
-						filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + fixed.pathSlugDocumentTypes + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
+						filePath = filePath + '/' + fixed.pathSlugDocumentTypes + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
 					} else {
-						filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + fixed.pathSlugMetadataSets + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
+						filePath = filePath + '/' + fixed.pathSlugMetadataSets + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
 					}
 				} else {
-					filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
+					filePath = filePath + '/' + e[i].nameCurrentValue + '.' + e[i].storageType;
 				}
 
 
 			} else if (e[i].hasOwnProperty('script') && e[i].hasOwnProperty('language')) {
-				filePath = config.filesFolder + '/' + globalClassNameIdsById[e[i].classNameId].filesPath + '/' + e[i].nameCurrentValue + '.' + e[i].language;
+				filePath = filePath + '/' + e[i].nameCurrentValue + '.' + e[i].language;
 				fileContent = e[i].script;
 			} else {
-				throw Error('Could not find content in entity ' + e[i].classNameId + ' (nothing you can do about this, this is my bad)');
+				throw Error('Could not find content in entity ' + e[i].classNameId + ' (Script needs to be updated with this classNameId)');
 			}
 
 			// Save file
 			fs.outputFileSync(filePath, fileContent);
 
 			//  Count the different files to be able to tell the user what's saved.
-			if (outCounter.hasOwnProperty(globalClassNameIdsById[e[i].classNameId].friendlyName)) {
-				outCounter[globalClassNameIdsById[e[i].classNameId].friendlyName] = outCounter[globalClassNameIdsById[e[i].classNameId].friendlyName] + 1;
+
+			friendlyName = getFriendlyNameFromClassNameId(e[i].classNameId);
+
+			if (outCounter.hasOwnProperty(friendlyName)) {
+				outCounter[friendlyName] = outCounter[friendlyName] + 1;
 			} else {
-				outCounter[globalClassNameIdsById[e[i].classNameId].friendlyName] = 1;
+				outCounter[friendlyName] = 1;
 			}
-
-
-		} else {
-			throw Error('Found an entry with ClassNameId ' + e[i].classNameId + ', but I don\'t know what kind of entry that is (nothing you can do about this, this is my bad)');
-		}
 	}
 
 	// Echo what has been saved
@@ -533,25 +535,17 @@ function getCompanyGroupFromCompanyId() {
 \** ************************************************************************ */
 function getTemplates() {
 	writeToScreen('Downloading templates', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
-	var apiArr = [];
+	var payload = [];
 
 	for (var i = 0; i < globalSites.length; ++i) {
-		// TODO - make this into a loop instead (define which structures are downloadable in globalClassNameIdsByName/Id )
-
-		// Journal Templates
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletAssetModelAssetEntry.id + '}}');
-
-		// ADTs
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletDynamicdatamappingModelDDMStructure.id + '}}');
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletBlogsModelBlogsEntry.id + '}}');
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletAssetModelAssetCategory.id + '}}');
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortalKernelRepositoryModelFileEntry.id + '}}');
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortalModelLayoutSet.id + '}}');
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletAssetModelAssetTag.id + '}}');
-		apiArr.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName.PortletWikiModelWikiPage.id + '}}');
+		for (var ii = 0; ii < globalClassNameIdsByName.length; ii++) {
+			if (globalClassNameIdsByName[ii].getTemplate) {
+				payload.push('{"/ddmtemplate/get-templates": {"groupId": ' + globalSites[i].groupId + ', "classNameId": ' + globalClassNameIdsByName[ii].id + '}}');
+			}
+		}
 	}
 
-	return getData('[' + apiArr.join() + ']').then(
+	return getData('[' + payload.join() + ']').then(
 		function (e) {
 			var curTemplate = [];
 			for (var y = 0; y < e.length; ++y) {
@@ -572,66 +566,20 @@ function getTemplates() {
 
 function getClassNameIds() {
 	writeToScreen('Downloading id\'s', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
-	// TODO - Make this into a loop instead
-	return getData('[' +
-		// Templates and Structures to be downloaded
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.asset.model.AssetEntry"}}, ' + //(10083) ADT - AP
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.dynamicdatamapping.model.DDMStructure"}}, ' + // (10102) All Structures
 
-		// A structure can have one of these classNameId's:
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.documentlibrary.model.DLFileEntryMetadata"}}, ' + // (10091) Document Metadata
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.documentlibrary.util.RawMetadataProcessor"}}, ' + // (10315) Something with Documents
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.dynamicdatalists.model.DDLRecordSet"}},' + // (10098) DDL Data Definition
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.journal.model.JournalArticle"}}, ' + // (10109) Journal Article
+	var payload = [];
+	for (var i = 0; i < globalClassNameIdsByName.length; i++) {
+		payload.push('{"/classname/fetch-class-name-id": {"clazz": ' + globalClassNameIdsByName[i].clazz + '}}');
+	}
 
-		// A site can have one of these classNameId's:
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.User"}}, ' + //(10005) User site
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Group"}}, ' + //(10001) Group
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Organization"}}, ' + //(10003) Organization
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.Company"}},' + //(10025) Company (global)
-
-		// ADT Templates (all but Aaset Publisher ADT which is defined on top of this list)
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.blogs.model.BlogsEntry"}}, ' + // (10007) ADT - Blogs
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.asset.model.AssetCategory"}}, ' + // (10081) ADT - Categories Navigation
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.kernel.repository.model.FileEntry"}}, ' + // (10423) ADT - Documents and Media
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portal.model.LayoutSet"}}, ' + // (10034) ADT - Site Map
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.asset.model.AssetTag"}}, ' + // (10085) ADT - Tags Navigation
-		'{"/classname/fetch-class-name-id": {"clazz": "com.liferay.portlet.wiki.model.WikiPage"}} ' + // (10016) ADT - Wiki
-
-		']').then(
+	return getData('[' + payload.join() + ']').then(
 			function (e) {
-				globalClassNameIdsByName.PortletAssetModelAssetEntry.id =						e[0];
-				globalClassNameIdsByName.PortletDynamicdatamappingModelDDMStructure.id =		e[1];
-				globalClassNameIdsByName.PortletDocumentlibraryModelDLFileEntryMetadata.id =	e[2];
-				globalClassNameIdsByName.PortletDocumentlibraryUtilRawMetadataProcessor.id =	e[3];
-				globalClassNameIdsByName.PortletDynamicdatalistsModelDDLRecordSet.id =			e[4];
-				globalClassNameIdsByName.PortletJournalModelJournalArticle.id =					e[5];
-				globalClassNameIdsByName.PortalModelUser.id =									e[6];
-				globalClassNameIdsByName.PortalModelGroup.id =									e[7];
-				globalClassNameIdsByName.PortalModelOrganization.id =							e[8];
-				globalClassNameIdsByName.PortalModelCompany.id =								e[9];
 
-				globalClassNameIdsByName.PortletBlogsModelBlogsEntry.id =						e[10];
-				globalClassNameIdsByName.PortletAssetModelAssetCategory.id =					e[11];
-				globalClassNameIdsByName.PortalKernelRepositoryModelFileEntry.id =				e[12];
-				globalClassNameIdsByName.PortalModelLayoutSet.id =								e[13];
-				globalClassNameIdsByName.PortletAssetModelAssetTag.id =							e[14];
-				globalClassNameIdsByName.PortletWikiModelWikiPage.id =							e[15];
-				
-				saveToCache(globalClassNameIdsByName, fixed.cacheClassNameIdsByName);
-
-
-				// Create a copy of the object but with id as key.
-				var classNames = _.keys(globalClassNameIdsByName);
-				for (var x = 0; x < classNames.length; ++x) {
-					globalClassNameIdsById[globalClassNameIdsByName[classNames[x]].id] = {
-						"friendlyName": globalClassNameIdsByName[classNames[x]].friendlyName,
-						"filesPath": globalClassNameIdsByName[classNames[x]].filesPath,
-						"className": classNames[x]
-					};
+				for (var i = 0; i < globalClassNameIdsByName.length; i++) {
+					globalClassNameIdsByName[i].id = e[i];
 				}
 
-				saveToCache(globalClassNameIdsById, fixed.cacheClassNameIdsById);
+				saveToCache(globalClassNameIdsByName, fixed.cacheClassNameIdsByName);
 			});
 }
 
@@ -657,8 +605,9 @@ function getStructuresFromListOfSites() {
 			// 'PortletDocumentlibraryUtilRawMetadataProcessor'. 
 			// This is a Liferay internal structure which is used to parse 
 			// document metadata and display it in the Document and Media Portlet.
+			var idRawMetaDataProcessor = getClassNameIdFromClazz('com.liferay.portlet.documentlibrary.util.RawMetadataProcessor');
 			e = e.filter(function(entry) {
-				return entry.classNameId != globalClassNameIdsByName.PortletDocumentlibraryUtilRawMetadataProcessor.id;
+				return entry.classNameId != idRawMetaDataProcessor;
 			});
      
 			globalStructures = e;
@@ -1066,6 +1015,44 @@ function createProject() {
  * Bits 'n' Pieces
  * 
 \** ************************************************************************ */
+function getClassNameIdFromClazz(clazz) {
+	var ret = [];
+	ret = globalClassNameIdsByName.filter(function(entry) {
+		return entry.clazz == clazz;
+	});
+
+	if (ret.length === 1) {
+		return ret[0].id;
+	} else {
+		return undefined;
+	}
+}
+
+function getFilesPathFromClassNameId(classNameId) {
+	var ret = [];
+	ret = globalClassNameIdsByName.filter(function(entry) {
+		return entry.id == classNameId;
+	});
+
+	if (ret.length === 1) {
+		return ret[0].filesPath;
+	} else {
+		return undefined;
+	}
+}
+
+function getFriendlyNameFromClassNameId(classNameId) {
+	var ret = [];
+	ret = globalClassNameIdsByName.filter(function(entry) {
+		return entry.id == classNameId;
+	});
+
+	if (ret.length === 1) {
+		return ret[0].friendlyName;
+	} else {
+		return undefined;
+	}
+}
 
 function removeTrailingSlash(str) {
 	if (str.charAt(str.length - 1) == "/") str = str.substr(0, str.length - 1);
