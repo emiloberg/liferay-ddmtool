@@ -1,24 +1,55 @@
 /**
  * GOOD THINGS:
- * XML Parser: https://www.npmjs.org/package/xml2js
  *
- *
+ * Diff: https://www.npmjs.org/package/diff
  *
  * TODO:
+ *
+ * Change so that cache are saved in separate folders for separate projects.
+ *
+ *
+ *
+ * Add tab complete for shell
+ *	https://github.com/hij1nx/complete
+ *	https://www.npmjs.org/package/tabtab
+ *
  *
  *
  * Add option to save files in a folder per group. E.g.
  *		/global/application_display_template/asset_publisher/file.ftl
  *		/my sub group/application_display_template/asset_publisher/file.ftl 
  *
+ *
+ *
  * Make an option to not save structures which are Liferay default (maybe blacklist some template keys)
+ *
  *
  *
  *	Since it's important that no templates/structures have the same name, create a function to 
  *  warn the user if some of the entities have the same name. Also make sure that the name of the DDMs 
  *  don't contain any non-safe characters (such as slashes).
  *
+ *
+ *
  *	Get all Workflows aswell.
+ *
+ *
+ *
+ *	Add support for not overwriting smallImageFile with null on update.
+ *
+ *
+ *
+ * Template/Structure Name and Description are stripped from all characters
+ * but A-Z, a-z, 0-9, (period), and (hyphen). This is because the nameMap
+ * and descriptionMap doesn't let us post "dangerous" characters.
+ *
+ * This cleaning is done in cleanXmlMapToObj.
+ *
+ * These characters can probably be escaped somehow (not to unicode since
+ * backslash is one of those characters not allowed. HTML, like &#x72;, is not allowed either).
+ *
+ *
+ * 
  *
  */
 
@@ -50,6 +81,8 @@ var Q			= require('q');
 var fs			= require('fs-extra');
 var glob		= require("glob");
 
+var parseString = require('xml2js').parseString;
+
 var clc			= require('cli-color');
 
 var _			= require('underscore');
@@ -59,6 +92,7 @@ var inquirer	= require("inquirer");
 
 var cli			= require('cli');
 var nprint		= require('node-print');
+var Table		= require('cli-table');
 
 
 
@@ -94,8 +128,26 @@ var fixed = {
 	pathSlugDocumentTypes:				'document_types',
 	pathSlugMetadataSets:				'metadata_sets',
 
-	apiPath:							'/api/jsonws/invoke'
+	apiPath:							'/api/jsonws/invoke',
+
+	filesEncoding:						'utf8'
 };
+
+fixed.tableStyle = {
+			head: ['Operation','Name', 'Type', 'To Grp', 'Grp URL'],
+			chars: {
+				'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': '',
+				'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': '',
+				'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': '',
+				'right': '' , 'right-mid': '' , 'middle': ' '
+				},
+			style: {
+				'padding-left': 2,
+				'padding-right': 0,
+				'head': ['yellow']
+				},
+			colWidths: [15, 30, 35, 30, 20]
+		};
 
 
 var globalClassNameIdsByName = [
@@ -159,12 +211,13 @@ var globalClassNameIdsByName = [
 		filesPath: 'journal/structures',
 		friendlyName: 'Journal Article Structure',
 		clazz: 'com.liferay.portlet.journal.model.JournalArticle',
-		type: 'structure'
+		type: 'journalStructure'
 	},
 	{
 		filesPath: 'document_and_media',
 		friendlyName: 'Document Types',
-		clazz: 'com.liferay.portlet.documentlibrary.model.DLFileEntryMetadata'
+		clazz: 'com.liferay.portlet.documentlibrary.model.DLFileEntryMetadata',
+		type: 'documentAndMedia'
 	},
 	{
 		filesPath: 'internal',
@@ -179,22 +232,26 @@ var globalClassNameIdsByName = [
 	{
 		friendlyName: 'User site',
 		clazz: 'com.liferay.portal.model.User',
-		type: 'group'
+		type: 'group',
+		containsDDMs: false
 	},
 	{
 		friendlyName: 'Group',
 		clazz: 'com.liferay.portal.model.Group',
-		type: 'group'
+		type: 'group',
+		containsDDMs: true
 	},
 	{
 		friendlyName: 'Organization',
 		clazz: 'com.liferay.portal.model.Organization',
-		type: 'group'
+		type: 'group',
+		containsDDMs: true
 	},
 	{
-		friendlyName: 'Company (Global)',
+		friendlyName: 'Company/Global',
 		clazz: 'com.liferay.portal.model.Company',
-		type: 'group'
+		type: 'group',
+		containsDDMs: true
 	}
 ];
 
@@ -204,7 +261,8 @@ var bolArgs = {
 	hasServer: false,
 	loadFromCache: false,
 	doSaveAllFilesToDisk: false,
-	doShowHelp: false
+	doShowHelp: false,
+	temp: true //Debug thing: remove temp
 };
 
 var helpArgs = {};
@@ -226,8 +284,434 @@ var STEP_JUST_LOADED_CONFIG				= 2;
 var STEP_JUST_READ_ALL_FROM_SERVER		= 3;
 var STEP_JUST_SAVED_ALL_FILES_TO_DISK	= 4;
 
-stepping(STEP_START);
+router(STEP_START);
 
+/** ************************************************************************ *\
+ * 
+ * UPLOAD
+ * 
+\** ************************************************************************ */
+
+function temp() {
+	uploadFiles([
+		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/My Asset Publisher.ftl',
+		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Second Asset Publisher.ftl',
+		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Global AP.ftl',
+		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Rich Summary.ftl'
+		]);
+//	uploadFiles('/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/New Asset Publisher.ftl');
+
+//	console.log(getSingleValueFromSitesListByGroupId(10182, 'name'));
+
+}
+
+function uploadSingleFileToServer() {
+	console.log('Upload single file');
+
+	var fileFolders = [];
+
+	// TODO - Se till att vi får med *alla* saker vi kan ladda upp, t.ex. document/media osv.
+	for (var i = 0; i < globalClassNameIdsByName.length; i++) {
+		if (globalClassNameIdsByName[i].type === 'template' || globalClassNameIdsByName[i].type === 'journalStructure') {
+			fileFolders.push({
+				name: globalClassNameIdsByName[i].friendlyName,
+				value: globalClassNameIdsByName[i].filesPath
+				});
+		}
+	}
+
+	inquirer.prompt([
+		{
+			type: "list",
+			name: "folder",
+			message: "What kind of file do you want to upload",
+			choices: fileFolders
+		}
+		], function( typeAnswers ) {
+			fs.readdir(config.filesFolder + '/' + typeAnswers.folder, function (err, files) {
+				if (err) {
+					throw Error(err);
+				}
+
+				inquirer.prompt([
+					{
+						type: "list",
+						name: "file",
+						message: "Which file do you want to upload",
+						choices: files
+					}
+					], function( fileAnswers ) {
+						uploadFiles([config.filesFolder + '/' + typeAnswers.folder + '/' + fileAnswers.file]);
+					}
+				);
+
+			});
+		}
+	);
+}
+
+/**
+ * Upload file by
+ * Takes file as 
+ * Based on the file path to the file - figure out what kind of file it is
+ * TODO SKRIV HÄR
+ *
+ */
+
+ /**
+ * Upload a structure/template
+ *
+ * @param <String> path and filename.
+ * @return <Bool> success.
+ */
+
+function uploadFiles(files) {
+
+//	console.dir(files);
+	var fullPayload = [];
+
+	var preparePayloadPromises = files.map(function(path) {
+		return createUploadObject(path);
+	});
+
+	Q.all(preparePayloadPromises).then(function (uploadObjects) {
+
+		var filteredUploadObjects = [];
+		var states = [
+			{
+				status: 'uptodate',
+				heading: 'Already up to date, will not update'
+			},
+			{
+				status: 'update',
+				heading: 'Update'
+			},
+			{
+				status: 'create',
+				heading: 'Create new'
+			}
+			];
+
+		// Split the uploadObjects into 3, one with files that are already up to date,
+		// one with files that needs updating and one with files that needs to be created,
+		// to be able to present it to the user in a nice way (and avoid) updating things,
+		// which does not need to be updated.
+		for (var x = 0; x < 3; x++) {
+			filteredUploadObjects = uploadObjects.filter(function(entry) {
+				return entry.status == states[x].status;
+			});
+
+			states[x].table = new Table(fixed.tableStyle);
+
+			for (var i = 0; i < filteredUploadObjects.length; i++) {
+				states[x].table.push([
+					filteredUploadObjects[i].status,
+					filteredUploadObjects[i].fileName,
+					filteredUploadObjects[i].fileClassObj.friendlyName,
+					filteredUploadObjects[i].group.name + ' (' + filteredUploadObjects[i].group.type + ')',
+					filteredUploadObjects[i].group.friendlyURL
+				]);
+			}
+
+			if (states[x].table.length > 0) {
+				writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_HEADING);
+				writeToScreen(states[x].heading + ' (' + states[x].table.length + ')', SEVERITY_NORMAL, SCREEN_PRINT_HEADING);
+				writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_HEADING);
+				writeToScreen(states[x].table.toString(), SEVERITY_NORMAL, SCREEN_PRINT_INFO);
+				writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_HEADING);
+			}
+
+		}
+
+		// Check to see that we actually have things which needs to be updated/created
+		if (states[1].table.length > 0 || states[2].table.length > 0 ) {
+			inquirer.prompt([
+				{
+					type: "list",
+					name: "confirm",
+					message: "Do you want to send this to the server?",
+					choices: [
+						{
+							name: 'Yes',
+							value: true
+						},
+						{
+							name: 'No',
+							value: false
+						}
+					]
+				}
+				], function( answers ) {
+					if (answers.confirm === true) {
+
+						// Remove every file which is already to date.
+						uploadObjects = uploadObjects.filter(function(entry) {
+							return entry.status != 'uptodate';
+						});
+						
+						// Create a batch of all payloads.
+						for (var i = 0; i < uploadObjects.length; i++) {
+							fullPayload.push(uploadObjects[i].payload);
+						}
+
+						getData('[' + fullPayload.join() + ']').then(function (resp) {
+							console.dir('All done');
+						}, function (e) {
+							console.dir(e);
+							lrException('Could not upload templates to server!\n');
+						});
+
+					} else {
+						// Todo, do something on abort
+						console.log('Abort');
+					}
+				}
+			);
+
+
+		} else {
+			writeToScreen('Every file is already up to date\n', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
+			// TODO - maybe route the user somewhere else.
+		}
+
+	});
+
+
+
+
+
+	// 	// getData(uploadObj.payload).then(
+	// 	// function (resUpdate) {
+	// 	// 	console.log('DDM updated!');			
+	// 	// },
+	// 	// function (e) {
+	// 	// 	lrException(e);
+	// 	// });
+
+}
+
+function createUploadObject(file) {
+
+	var deferred = Q.defer();
+
+	var fileClassObj = getClassNameIdFromFilePath(file);
+	var fileName = filenameAndPathToFilename(file);
+	var newScript = '';
+	var currentDDMs = [];
+	var thisDDM = [];
+	var isNewDDM = false;
+	var payload = {};
+	var questionsSites = [];
+	var returnObj = {
+		exceptionFile: file,
+		group: {}
+	};
+
+	// If file actually is a DDM
+	if (fileClassObj != -1) {
+
+		returnObj.fileClassObj = fileClassObj;
+		returnObj.fileName = fileName;
+
+		try {
+			newScript = fs.readFileSync(file, {encoding: fixed.filesEncoding});
+		} catch(catchErr) {
+			returnObj.exception = 'Could not read file';
+			deferred.reject(returnObj);
+			return deferred.promise;
+		}
+
+		// Get big array of all structures or templates.
+		if(fileClassObj.type === 'template') {
+			currentDDMs = globalTemplates;
+		} else if (fileClassObj.type === 'journalStructure') {
+			currentDDMs = globalStructures;
+		} else {
+			returnObj.exception = 'Not a template nor a structure';
+			deferred.reject(returnObj);
+			return deferred.promise;
+		}
+
+		// Filter the array to only contain the structures/templates
+		// of the same type (classNameId) as the file we're uploading
+		currentDDMs = currentDDMs.filter(function(entry) {
+			return entry.classNameId === fileClassObj.id;
+		});
+
+		// Search the array by DDM name.
+		// If we find a match, we're *updating* that DDM. If we don't
+		// Find a match, we're *creating a new* DDM.
+		if (currentDDMs.length > 0) {
+			thisDDM = currentDDMs.filter(function(entry) {
+				return entry.nameCurrentValue === fileName;
+			});
+			if(thisDDM.length === 1) {
+				isNewDDM = false;
+			} else if (thisDDM.length > 1) {
+				returnObj.exception = 'There are more than one structures/templates with the same name.\nName: ' + fileName + '\nDDM: ' + fileClassObj.friendlyName;
+				deferred.reject(returnObj);
+				return deferred.promise;
+			} else {
+				isNewDDM = true;
+			}
+		} else {
+			isNewDDM = true;
+		}
+
+
+		if (isNewDDM === true) {
+			// NEW DDM			
+
+			returnObj.status = 'create';
+
+			for (var i = 0; i < globalSites.length; i++) {
+				if(getContainsDDMsFromClassNameId(globalSites[i].classNameId)) {
+					questionsSites.push({
+						name: globalSites[i].name + ' (' + getFriendlyNameFromClassNameId(globalSites[i].classNameId) + ')' ,
+						value: globalSites[i].groupId
+						});
+				}
+			}
+
+
+			inquirer.prompt([
+				{
+					type: "list",
+					name: "siteSelection",
+					message: "Which site do you want to add the DDM to?",
+					choices: questionsSites
+				}
+				], function( answersSite ) {
+					console.dir(answersSite.siteSelection);
+					//apa
+
+					console.dir('fileName' + ' is ' + fileClassObj.friendlyName);
+				}
+			);
+
+		} else {
+			// UPDATE DDM
+
+			if(fileClassObj.type === 'template') {
+				// Download the template we're going to update to get the absolute latest one.
+				getData('{"/ddmtemplate/get-template": {"templateId": ' + thisDDM[0].templateId + '}}', false).then(
+					function (oldTemplate) {
+
+						// Check if the file already is up to date
+						if(oldTemplate.script === newScript) {
+							returnObj.status = 'uptodate';
+						} else {
+							returnObj.status = 'update';
+						}
+
+						// Set some values in our return object to be able to do a nice print to the user.
+						returnObj.group.description = getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'description');
+						returnObj.group.name = getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'name');
+						returnObj.group.type = getFriendlyNameFromClassNameId(getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'classNameId'));
+						returnObj.group.friendlyURL = getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'friendlyURL');
+
+						// Populate payload with data from old template (things we aren't updating)
+						payload = {
+							templateId: oldTemplate.templateId,
+							classPK: oldTemplate.classPK,
+							type: oldTemplate.type,
+							mode: oldTemplate.mode,
+							language: oldTemplate.language,
+							cacheable: oldTemplate.cacheable,
+							smallImage: oldTemplate.smallImage,
+							smallImageURL: oldTemplate.smallImageURL,
+							smallImageFile: null
+						};
+
+						// Populate payload with data from old template (things we aren't updating)
+						// but we need to make it into a Map which Liferay wants.
+
+						xmlMapToObj(oldTemplate.name, 'Name')
+						.then(function (resName) {
+							payload.nameMap = resName;
+						})
+						.then(xmlMapToObj(oldTemplate.description, 'Description')
+						.then(function (resDesc) {
+							payload.descriptionMap = resDesc;
+						}))
+						.then(
+							function () {
+								payload.script = newScript;
+								payload = JSON.stringify(payload);
+								payload = '{"/ddmtemplate/update-template": ' + payload + '}';
+								returnObj.payload = payload;
+
+								deferred.resolve(returnObj);
+							}
+						);
+
+					},
+					function (err) {
+						returnObj.exception = 'Tried to download template \'' + thisDDM[0].templateId + '\' from server, but couldn\'t becuase:\n' + err;
+						deferred.reject(returnObj);
+						return deferred.promise;
+					}
+				);
+
+			} else if (fileClassObj.type === 'journalStructure') {
+				// TODO: Do the same with structures as we did with templates
+			}
+
+		}
+
+
+	}
+
+	return deferred.promise;
+
+}
+
+function cleanXmlMapToObj(str) {
+	str = str.replace(/[^a-zA-Z0-9 \.-]/g, "");
+	return str;
+}
+
+function xmlMapToObj(xml, type){
+
+	var deferred = Q.defer();
+	parseString(xml, function (err, result) {
+		if (err) {
+			lrException('Could not parse XML for ' + type);
+		}
+
+		var out = {};
+		var prop = '';
+		var val = '';
+
+		for (var i = 0; i < result.root[type].length; i++) {
+			val = result.root[type][i]['_'];
+			val = cleanXmlMapToObj(val);
+			prop = result.root[type][i]['$']['language-id'];
+			out[prop] = val;
+		}
+		deferred.resolve(out);
+	});
+
+	return deferred.promise;
+}
+
+
+
+function getClassNameIdFromFilePath(file) {
+	// TODO - Se till att vi får med *alla* saker vi kan ladda upp, t.ex. document/media osv.
+	file = file.split('/');
+	var filesPath = file[file.length - 3] + '/' + file[file.length - 2];
+
+	var classNameIds = globalClassNameIdsByName.filter(function(entry) {
+		return entry.filesPath === filesPath;
+	});
+
+	if(classNameIds.length === 1) {
+		return classNameIds[0];
+	} else {
+		return -1;
+	}
+}
 
 /** ************************************************************************ *\
  * 
@@ -238,7 +722,10 @@ stepping(STEP_START);
 
 function showMainMenu() {
 
-	if (bolArgs.doSaveAllFilesToDisk) {
+	// TODO, remove temp-if
+	if (bolArgs.temp) {
+		temp();
+	} else if (bolArgs.doSaveAllFilesToDisk) {
 		saveEverythingToFile();
 	} else {
 		if (!bolArgs.doSilently) {
@@ -254,6 +741,10 @@ function showMainMenu() {
 							value: 'saveAllFilesToDisk'
 						},
 						{
+							name: 'Upload a single file',
+							value: 'uploadSingleFileToServer'
+						},
+						{
 							name: 'TODO Upload Everything',
 							value: 'uploadAllFilesToServer'
 						},
@@ -265,12 +756,15 @@ function showMainMenu() {
 					],
 				}
 				], function( answers ) {
-					if (answers.mainMenu === 'saveAllFilesToDisk') {
+					if (answers.mainMenu === 'uploadSingleFileToServer') {
+						uploadSingleFileToServer();
+					} else if (answers.mainMenu === 'saveAllFilesToDisk') {
 						saveEverythingToFile();
 					} else {
 						console.log('Bye bye!');
 					}
-				});
+				}
+			);
 		}
 	}
 }
@@ -291,7 +785,7 @@ function chainFetchAllFromServer() {
 	.then(getStructuresFromListOfSites)
 	.then(getTemplates)
 	.done(function () {
-		stepping(STEP_JUST_READ_ALL_FROM_SERVER);
+		router(STEP_JUST_READ_ALL_FROM_SERVER);
 	}, doneRejected);
 }
 
@@ -300,7 +794,7 @@ function chainReadFromCache() {
 	Q.resolve()
 	.then(getAllCache)
 	.done(function () {
-		stepping(STEP_JUST_READ_ALL_FROM_SERVER);
+		router(STEP_JUST_READ_ALL_FROM_SERVER);
 	}, doneRejected);
 }
 
@@ -354,6 +848,7 @@ function saveArgs() {
 		bolArgs.doShowHelp = true;
 	}
 
+
 }
 
 /** ************************************************************************ *\
@@ -374,13 +869,17 @@ function showHelp() {
 
 }
 
-function stepping(step) {
+function router(step) {
+
+	if (step === STEP_START) {
+		saveArgs();
+	}
+
 	if (bolArgs.doShowHelp) {
 		showHelp();
 	} else {
 		if (step === STEP_START) {
 			Q.resolve()
-			.then(saveArgs)
 			.then(selectProject);
 		} else if (step === STEP_JUST_LOADED_CONFIG) {
 			if (bolArgs.loadFromCache) {
@@ -435,11 +934,10 @@ function saveEverythingToFile() {
 	saveStructuresAndTemplatesToFile(globalTemplates);
 	saveStructuresAndTemplatesToFile(globalStructures);
 	bolArgs.doSaveAllFilesToDisk = false;
-	stepping(STEP_JUST_SAVED_ALL_FILES_TO_DISK);
+	router(STEP_JUST_SAVED_ALL_FILES_TO_DISK);
 }
 
 function saveStructuresAndTemplatesToFile(e) {
-	// apa
 	var filePath;
 	var fileContent;
 	var outCounter = {};
@@ -519,7 +1017,7 @@ function getUserSites() {
 
 function getCompanyGroupFromCompanyId() {
 	writeToScreen('Downloading company site', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
-	return getData('{"/group/get-company-group": {"companyId": ' + globalCompanyId + '}}').then(
+	return getData('{"/group/get-company-group": {"companyId": "' + globalCompanyId + '"}}').then(
 		function (e) {
 			// Dirty way of adding the global site to the list of sites.
 			globalSites = JSON.parse('[' + JSON.stringify(globalSites).substr(1).slice(0, -1) + ',' + JSON.stringify(e) + ']');
@@ -737,7 +1235,7 @@ function loadProject(projectJson) {
 					config.host			= project.hosts[0].host;
 					config.username		= project.hosts[0].username;
 					config.password		= project.hosts[0].password;
-					stepping(STEP_JUST_LOADED_CONFIG);
+					router(STEP_JUST_LOADED_CONFIG);
 				} else {
 					// If the user supplied a project but there's more than one,
 					// server in the config file, check if the user also supplied an
@@ -751,7 +1249,7 @@ function loadProject(projectJson) {
 							config.host			= currentServer[0].host;
 							config.username		= currentServer[0].username;
 							config.password		= currentServer[0].password;
-							stepping(STEP_JUST_LOADED_CONFIG);
+							router(STEP_JUST_LOADED_CONFIG);
 						} else {
 							lrException('Server \'' + argv.server + '\' does not exist');
 						}
@@ -765,7 +1263,7 @@ function loadProject(projectJson) {
 					config.host			= project.hosts[0].host;
 					config.username		= project.hosts[0].username;
 					config.password		= project.hosts[0].password;
-					stepping(STEP_JUST_LOADED_CONFIG);
+					router(STEP_JUST_LOADED_CONFIG);
 				} else {
 					for (var i = 0; i < project.hosts.length; ++i) {
 						hosts.push({
@@ -789,7 +1287,7 @@ function loadProject(projectJson) {
 						config.username		= answers.selectHosts.username;
 						config.password		= answers.selectHosts.password;
 
-						stepping(STEP_JUST_LOADED_CONFIG);
+						router(STEP_JUST_LOADED_CONFIG);
 					});
 				}
 			}
@@ -912,7 +1410,7 @@ function createProject() {
 				// Check if connection works
 				var deferred = Q.defer();
 				writeToScreen('Testing connection', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
-				getData('{"/portal/get-build-number": {}}', answersHosts.host, answersHosts.username, answersHosts.password)
+				getData('{"/portal/get-build-number": {}}', true, answersHosts.host, answersHosts.username, answersHosts.password)
 				.then(function (e) {
 					writeToScreen('Connection okay!', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 					// Resolve Promise if connection Works
@@ -1015,6 +1513,20 @@ function createProject() {
  * Bits 'n' Pieces
  * 
 \** ************************************************************************ */
+
+function getSingleValueFromSitesListByGroupId(groupId, prop) {
+	var ret = [];
+	ret = globalSites.filter(function(entry) {
+		return entry.groupId == groupId;
+	});
+
+	if (ret.length === 1) {
+		return ret[0][prop];
+	} else {
+		return undefined;
+	}
+}
+
 function getClassNameIdFromClazz(clazz) {
 	var ret = [];
 	ret = globalClassNameIdsByName.filter(function(entry) {
@@ -1053,6 +1565,20 @@ function getFriendlyNameFromClassNameId(classNameId) {
 		return undefined;
 	}
 }
+
+function getContainsDDMsFromClassNameId(classNameId) {
+	var ret = [];
+	ret = globalClassNameIdsByName.filter(function(entry) {
+		return entry.id == classNameId;
+	});
+
+	if (ret.length === 1) {
+		return ret[0].containsDDMs;
+	} else {
+		return undefined;
+	}
+}
+
 
 function removeTrailingSlash(str) {
 	if (str.charAt(str.length - 1) == "/") str = str.substr(0, str.length - 1);
@@ -1106,18 +1632,22 @@ function valueExistsInObj(haystack, needle) {
 	}
 }
 
-function getData(api, lrHost, lrUser, lrPass){
-
-	cli.spinner(clc.blue(fixed.txtWorking));
+function getData(api, showSpinner, lrHost, lrUser, lrPass){
 
 	var deferred = Q.defer();
 	var errStr;
 
+	showSpinner = typeof showSpinner !== 'undefined' ? showSpinner : true;
 	lrHost = typeof lrHost !== 'undefined' ? lrHost : config.host;
 	lrUser = typeof lrUser !== 'undefined' ? lrUser : config.username;
 	lrPass = typeof lrPass !== 'undefined' ? lrPass : config.password;
 
 	lrHost = lrHost + fixed.apiPath;
+
+
+	if (showSpinner) {
+		cli.spinner(clc.blue(fixed.txtWorking));
+	}
 
 	writeToScreen('Requesting data (from server ' + lrHost + '):\n' + api , SEVERITY_DEBUG, SCREEN_PRINT_INFO);
 	var lrResException;
@@ -1129,7 +1659,9 @@ function getData(api, lrHost, lrUser, lrPass){
 		.send(api)
 		.end(function(err, res){
 
-			cli.spinner('', true);
+			if (showSpinner) {
+				cli.spinner('', true);
+			}
 
 			if (err) {
 				if (err.code === 'ENOTFOUND') { errStr = 'Host not found'; }
