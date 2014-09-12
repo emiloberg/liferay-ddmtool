@@ -302,10 +302,12 @@ router(STEP_START);
 
 function temp() {
 	uploadFiles([
-		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/My Asset Publisher.ftl',
-		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Second Asset Publisher.ftl',
-		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Global AP.ftl',
-		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Rich Summary.ftl'
+		'/Users/emiloberg/code/test-wcm/journal/structures/Test Structure.xml'
+		// '/Users/emiloberg/code/test-wcm/journal/templates/Test Structure.ftl',
+		// '/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/My Asset Publisher.ftl',
+		// '/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Second Asset Publisher.ftl'
+		// '/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Global AP.ftl'
+//		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Rich Summary.ftl'
 		]);
 //	uploadFiles('/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/New Asset Publisher.ftl');
 
@@ -378,7 +380,7 @@ function uploadSingleFileToServer() {
 
 function uploadFiles(files) {
 
-//	console.dir(files);
+
 	var fullPayload = [];
 
 	var preparePayloadPromises = files.map(function(path) {
@@ -480,6 +482,7 @@ function uploadFiles(files) {
 
 						getData('[' + fullPayload.join() + ']').then(function (resp) {
 							updateGlobalStructureTemplateWithNew(resp);
+							writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
 							writeToScreen('Files updated!', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
 						}, function (e) {
 							console.dir(e);
@@ -499,31 +502,30 @@ function uploadFiles(files) {
 		}
 
 	});
-
-
-
-
-
-	// 	// getData(uploadObj.payload).then(
-	// 	// function (resUpdate) {
-	// 	// 	console.log('DDM updated!');			
-	// 	// },
-	// 	// function (e) {
-	// 	// 	lrException(e);
-	// 	// });
-
 }
 
+/**
+ * Updates globalStructures and globalTemplates with the 
+ * newly created or updated theme/structure, and save
+ * to cache. 
+ *
+ */
 function updateGlobalStructureTemplateWithNew(retObjs) {
-	//apa lägg in returvärdet från strukturen/templaten i globalStructures/templates
-
-//	console.dir(retObjs);
-
 	for (var i = 0; i < retObjs.length; i++) {
-		
-
-//		dir(getTemplatesSingleValueByPropValue('uuid', retObjs[i].uuid, 'nameCurrentValue'));
-	};
+		if (retObjs[i].hasOwnProperty('templateKey')) {
+			globalTemplates = globalTemplates.filter(function(entry) {
+				return entry.templateKey != retObjs[i].templateKey;
+			});
+			globalTemplates.push(retObjs[i]);
+			saveToCache(globalTemplates, fixed.cacheTemplatesFilename);
+		} else if (retObjs[i].hasOwnProperty('structureKey')) {
+			globalStructures = globalStructures.filter(function(entry) {
+				return entry.structureKey != retObjs[i].structureKey;
+			});
+			globalStructures.push(retObjs[i]);
+			saveToCache(globalStructures, fixed.cacheStructuresFilename);
+		}
+	}
 }
 
 function createUploadObject(file) {
@@ -542,6 +544,7 @@ function createUploadObject(file) {
 		exceptionFile: file,
 		group: {}
 	};
+	var oldDDMObject = {};
 
 	// If file actually is a DDM
 	if (fileClassObj != -1) {
@@ -557,7 +560,8 @@ function createUploadObject(file) {
 			return deferred.promise;
 		}
 
-		// Get big array of all structures or templates.
+		// point globalTemplates or globalStructures to currentDDMs, depending
+		// on if it's a template or structure we're dealing with.
 		if(fileClassObj.type === 'template') {
 			currentDDMs = globalTemplates;
 		} else if (fileClassObj.type === 'journalStructure') {
@@ -583,6 +587,7 @@ function createUploadObject(file) {
 			});
 			if(thisDDM.length === 1) {
 				isNewDDM = false;
+				oldDDMObject = thisDDM[0];
 			} else if (thisDDM.length > 1) {
 				returnObj.exception = 'There are more than one structures/templates with the same name.\nName: ' + fileName + '\nDDM: ' + fileClassObj.friendlyName;
 				deferred.reject(returnObj);
@@ -629,6 +634,8 @@ function createUploadObject(file) {
 			// UPDATE DDM
 
 			if(fileClassObj.type === 'template') {
+				// UPDATE TEMPLATE
+
 				// APA TODO - Byt ut till att hämta temat från strängen vi har i minnet istället.
 				// Download the template we're going to update to get the absolute latest one.
 				getData('{"/ddmtemplate/get-template": {"templateId": ' + thisDDM[0].templateId + '}}', false).then(
@@ -688,7 +695,47 @@ function createUploadObject(file) {
 				);
 
 			} else if (fileClassObj.type === 'journalStructure') {
-				// TODO: Do the same with structures as we did with templates
+				// UPDATE STRUCTURE
+
+				// Check if the file already is up to date
+				if(oldDDMObject.xsd === newScript) {
+					returnObj.status = 'uptodate';
+				} else {
+					returnObj.status = 'update';
+				}
+
+				// Set some values in our return object to be able to do a nice print to the user.
+				returnObj.group.description = getSingleValueFromSitesListByGroupId(oldDDMObject.groupId, 'description');
+				returnObj.group.name = getSingleValueFromSitesListByGroupId(oldDDMObject.groupId, 'name');
+				returnObj.group.type = getFriendlyNameFromClassNameId(getSingleValueFromSitesListByGroupId(oldDDMObject.groupId, 'classNameId'));
+				returnObj.group.friendlyURL = getSingleValueFromSitesListByGroupId(oldDDMObject.groupId, 'friendlyURL');
+				returnObj.group.groupId = oldDDMObject.groupId;
+
+				// Populate payload with data from old structure (things we aren't updating)
+				payload = {
+					structureId: oldDDMObject.structureId,
+					parentStructureId: oldDDMObject.parentStructureId,
+					xsd: newScript
+				};
+
+				// Populate payload with data from old template (things we aren't updating)
+				// but we need to make it into a Map which Liferay wants.
+				xmlMapToObj(oldDDMObject.name, 'Name')
+				.then(function (resName) {
+					payload.nameMap = resName;
+				})
+				.then(xmlMapToObj(oldDDMObject.description, 'Description')
+				.then(function (resDesc) {
+					payload.descriptionMap = resDesc;
+				}))
+				.then(
+					function () {
+						returnObj.payload = '{"/ddmstructure/update-structure": ' + JSON.stringify(payload) + '}';
+						deferred.resolve(returnObj);
+					}
+				);
+
+
 			}
 
 		}
@@ -707,24 +754,34 @@ function cleanXmlMapToObj(str) {
 
 function xmlMapToObj(xml, type){
 
+
 	var deferred = Q.defer();
-	parseString(xml, function (err, result) {
-		if (err) {
-			lrException('Could not parse XML for ' + type);
-		}
 
-		var out = {};
-		var prop = '';
-		var val = '';
+	if (xml.length > 0) {
+		parseString(xml, function (err, result) {
+			if (err) {
+				lrException('Could not parse XML for ' + type);
+			}
 
-		for (var i = 0; i < result.root[type].length; i++) {
-			val = result.root[type][i]['_'];
-			val = cleanXmlMapToObj(val);
-			prop = result.root[type][i]['$']['language-id'];
-			out[prop] = val;
-		}
-		deferred.resolve(out);
-	});
+			var out = {};
+			var prop = '';
+			var val = '';
+
+			if(result.root[type] === undefined) {
+				deferred.resolve(null);
+			} else {
+				for (var i = 0; i < result.root[type].length; i++) {
+					val = result.root[type][i]['_'];
+					val = cleanXmlMapToObj(val);
+					prop = result.root[type][i]['$']['language-id'];
+					out[prop] = val;
+				}
+				deferred.resolve(out);
+			}
+		});
+	} else {
+		deferred.resolve(null);
+	}
 
 	return deferred.promise;
 }
@@ -757,7 +814,7 @@ function getClassNameIdFromFilePath(file) {
 function showMainMenu() {
 
 	// TODO, remove temp-if
-	if (bolArgs.temp === 'apa') {
+	if (bolArgs.temp) {
 		bolArgs.temp = false;
 		temp();
 	} else if (bolArgs.doSaveAllFilesToDisk) {
