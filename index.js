@@ -284,6 +284,7 @@ var SCREEN_PRINT_INFO		= 0;
 var SCREEN_PRINT_SAVE		= 1;
 var SCREEN_PRINT_ERROR		= 2;
 var SCREEN_PRINT_HEADING	= 3;
+var SCREEN_PRINT_FILE		= 4;
 
 // Steps
 var STEP_START							= 1;
@@ -302,9 +303,10 @@ router(STEP_START);
 
 function temp() {
 	uploadFiles([
-		'/Users/emiloberg/code/test-wcm/journal/structures/Test Structure.xml'
+		// '/Users/emiloberg/code/test-wcm/journal/structures/Test Structure.xml'
 		// '/Users/emiloberg/code/test-wcm/journal/templates/Test Structure.ftl',
-		// '/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/My Asset Publisher.ftl',
+		'/Users/emiloberg/code/test-wcm/journal/templates/Ny Test Structure.ftl',
+		//'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/My Asset Publisher.ftl',
 		// '/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Second Asset Publisher.ftl'
 		// '/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Global AP.ftl'
 //		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Rich Summary.ftl'
@@ -387,6 +389,7 @@ function uploadFiles(files) {
 		return createUploadObject(path);
 	});
 
+	// TODO: Handle if we get rejects! E.g because there are no structures uploaded
 	Q.all(preparePayloadPromises).then(function (uploadObjects) {
 
 		var filteredUploadObjects = [];
@@ -538,13 +541,16 @@ function createUploadObject(file) {
 	var currentDDMs = [];
 	var thisDDM = [];
 	var isNewDDM = false;
+	var hasAtLeastOneSiteWithStructures = false;
 	var payload = {};
 	var questionsSites = [];
+	var oldDDMObject = {};
+	var possibleStructures = [];
 	var returnObj = {
 		exceptionFile: file,
 		group: {}
 	};
-	var oldDDMObject = {};
+	var journalStructureClassNameId = '';
 
 	// If file actually is a DDM
 	if (fileClassObj != -1) {
@@ -603,32 +609,90 @@ function createUploadObject(file) {
 		if (isNewDDM === true) {
 			// NEW DDM			
 
+			// http://localhost:8080/api/jsonws?signature=%2Fjournaltemplate%2Fadd-template-11-groupId-templateId-autoTemplateId-structureId-nameMap-descriptionMap-xsl-formatXsl-langType-cacheable-serviceContext
+
 			returnObj.status = 'create';
 
-			for (var i = 0; i < globalSites.length; i++) {
-				if(getContainsDDMsFromClassNameId(globalSites[i].classNameId)) {
-					questionsSites.push({
-						name: globalSites[i].name + ' (' + getFriendlyNameFromClassNameId(globalSites[i].classNameId) + ')' ,
-						value: globalSites[i].groupId
+
+			if (returnObj.fileClassObj.clazz === 'com.liferay.portlet.dynamicdatamapping.model.DDMStructure') {
+				// The new file is a journal template which needs to be bound to a journal *structure*
+				// Therefor we need to figure out which sites has journal article structures.
+
+				journalStructureClassNameId = getClassNameIdFromClazz('com.liferay.portlet.journal.model.JournalArticle');
+
+				// Loop *every* site
+				for (var i = 0; i < globalSites.length; i++) {
+
+					// Only let sites which may contain DDMs through
+					// Like user sites we don't allow to contain DDMs and ar therefor ignoring them.
+					if(getContainsDDMsFromClassNameId(globalSites[i].classNameId)) {
+
+						// Create an array with entries for each site which the user may
+						// upload the journal template to. To be able to upload a template
+						// that site needs to have at least 1 journal structure (to which
+						// we can bind the template).
+						possibleStructures[i] = globalStructures.filter(function(entry) {
+							if(entry.groupId === globalSites[i].groupId) {
+								if (entry.classNameId === journalStructureClassNameId) {
+									return true;
+								} else {
+									return false;
+								}
+							} else {
+								return false;
+							}
 						});
+
+						// If the site has at least one journal structure. Add the
+						// site to the list of sites the user is able to choose from
+						// when uploading the template.
+						if (possibleStructures[i].length > 0) {
+							hasAtLeastOneSiteWithStructures = true;
+							questionsSites.push({
+								name: globalSites[i].name + ' [' + getFriendlyNameFromClassNameId(globalSites[i].classNameId) + '] (' + possibleStructures[i].length + ')' ,
+								value: {
+									groupId: globalSites[i].groupId,
+									possibleStructures: possibleStructures[i]
+									}
+								});
+						}
+					}
 				}
+
+			} else {
+				// TODO: Do the same thing for all other new templates/structures
 			}
 
+			// Check that we have at least one site with a journal structure,
+			// to which we can bind the template.
+			if (hasAtLeastOneSiteWithStructures) { // Should probably change this to handle non-journal template files.
 
-			inquirer.prompt([
-				{
-					type: "list",
-					name: "siteSelection",
-					message: "Which site do you want to add the DDM to?",
-					choices: questionsSites
-				}
-				], function( answersSite ) {
-					console.dir(answersSite.siteSelection);
-					//apa
+				writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_HEADING)
+				writeToScreen('Preparing to upload file', SEVERITY_NORMAL, SCREEN_PRINT_HEADING)
+				writeToScreen(returnObj.fileName + ' (Type: ' + returnObj.fileClassObj.friendlyName + ')', SEVERITY_NORMAL, SCREEN_PRINT_FILE)
+				writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_HEADING)				
 
-					console.dir('fileName' + ' is ' + fileClassObj.friendlyName);
-				}
-			);
+				inquirer.prompt([
+					{
+						type: "list",
+						name: "siteSelection",
+						message: "Which site do you want to add the " + returnObj.fileClassObj.friendlyName + " to",
+						choices: questionsSites
+					}
+					], function( answersSite ) {
+						// console.dir(answersSite.siteSelection);
+						// console.dir('fileName' + ' is ' + fileClassObj.friendlyName);
+						// work here
+
+
+
+					}
+				);
+			} else {
+				returnObj.exception = 'There are no sites with structures to which we can bind a template';
+				deferred.reject(returnObj);
+				return deferred.promise;
+			}
 
 		} else {
 			// UPDATE DDM
@@ -636,63 +700,51 @@ function createUploadObject(file) {
 			if(fileClassObj.type === 'template') {
 				// UPDATE TEMPLATE
 
-				// APA TODO - Byt ut till att hämta temat från strängen vi har i minnet istället.
-				// Download the template we're going to update to get the absolute latest one.
-				getData('{"/ddmtemplate/get-template": {"templateId": ' + thisDDM[0].templateId + '}}', false).then(
-					function (oldTemplate) {
+				// Check if the file already is up to date
+				if(oldDDMObject.script === newScript) {
+					returnObj.status = 'uptodate';
+				} else {
+					returnObj.status = 'update';
+				}
 
-						// Check if the file already is up to date
-						if(oldTemplate.script === newScript) {
-							returnObj.status = 'uptodate';
-						} else {
-							returnObj.status = 'update';
-						}
+				// Set some values in our return object to be able to do a nice print to the user.
+				returnObj.group.description = getSingleValueFromSitesListByGroupId(oldDDMObject.groupId, 'description');
+				returnObj.group.name = getSingleValueFromSitesListByGroupId(oldDDMObject.groupId, 'name');
+				returnObj.group.type = getFriendlyNameFromClassNameId(getSingleValueFromSitesListByGroupId(oldDDMObject.groupId, 'classNameId'));
+				returnObj.group.friendlyURL = getSingleValueFromSitesListByGroupId(oldDDMObject.groupId, 'friendlyURL');
+				returnObj.group.groupId = oldDDMObject.groupId;
 
-						// Set some values in our return object to be able to do a nice print to the user.
-						returnObj.group.description = getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'description');
-						returnObj.group.name = getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'name');
-						returnObj.group.type = getFriendlyNameFromClassNameId(getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'classNameId'));
-						returnObj.group.friendlyURL = getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'friendlyURL');
-						returnObj.group.groupId = oldTemplate.groupId;
+				// Populate payload with data from old template (things we aren't updating)
+				payload = {
+					templateId: oldDDMObject.templateId,
+					classPK: oldDDMObject.classPK,
+					type: oldDDMObject.type,
+					mode: oldDDMObject.mode,
+					language: oldDDMObject.language,
+					cacheable: oldDDMObject.cacheable,
+					smallImage: oldDDMObject.smallImage,
+					smallImageURL: oldDDMObject.smallImageURL,
+					smallImageFile: null, // We don't support small images right now.
+					script: newScript
+				};
 
-						// Populate payload with data from old template (things we aren't updating)
-						payload = {
-							templateId: oldTemplate.templateId,
-							classPK: oldTemplate.classPK,
-							type: oldTemplate.type,
-							mode: oldTemplate.mode,
-							language: oldTemplate.language,
-							cacheable: oldTemplate.cacheable,
-							smallImage: oldTemplate.smallImage,
-							smallImageURL: oldTemplate.smallImageURL,
-							smallImageFile: null, // We don't support small images right now.
-							script: newScript
-						};
-
-						// Populate payload with data from old template (things we aren't updating)
-						// but we need to make it into a Map which Liferay wants.
-						xmlMapToObj(oldTemplate.name, 'Name')
-						.then(function (resName) {
-							payload.nameMap = resName;
-						})
-						.then(xmlMapToObj(oldTemplate.description, 'Description')
-						.then(function (resDesc) {
-							payload.descriptionMap = resDesc;
-						}))
-						.then(
-							function () {
-								returnObj.payload = '{"/ddmtemplate/update-template": ' + JSON.stringify(payload) + '}';
-								deferred.resolve(returnObj);
-							}
-						);
-
-					},
-					function (err) {
-						returnObj.exception = 'Tried to download template \'' + thisDDM[0].templateId + '\' from server, but couldn\'t becuase:\n' + err;
-						deferred.reject(returnObj);
-						return deferred.promise;
+				// Populate payload with data from old template (things we aren't updating)
+				// but we need to make it into a Map which Liferay wants.
+				xmlMapToObj(oldDDMObject.name, 'Name')
+				.then(function (resName) {
+					payload.nameMap = resName;
+				})
+				.then(xmlMapToObj(oldDDMObject.description, 'Description')
+				.then(function (resDesc) {
+					payload.descriptionMap = resDesc;
+				}))
+				.then(
+					function () {
+						returnObj.payload = '{"/ddmtemplate/update-template": ' + JSON.stringify(payload) + '}';
+						deferred.resolve(returnObj);
 					}
 				);
+
 
 			} else if (fileClassObj.type === 'journalStructure') {
 				// UPDATE STRUCTURE
@@ -1781,7 +1833,9 @@ function writeToScreen(str, severity, type) {
 		} else if (type == SCREEN_PRINT_SAVE) {
 			console.log(clc.green(str));
 		} else if (type == SCREEN_PRINT_HEADING) {
-			console.log(clc.blue(str));			
+			console.log(clc.blue(str));
+		} else if (type == SCREEN_PRINT_FILE) {
+			console.log(clc.yellow(str));
 		} else if (type == SCREEN_PRINT_ERROR) {
 			console.log(clc.red(str));
 		} else {
