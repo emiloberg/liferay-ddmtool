@@ -26,7 +26,7 @@
  *
  *
  *	Since it's important that no templates/structures have the same name, create a function to 
- *  warn the user if some of the entities have the same name. Also make sure that the name of the DDMs 
+ *  warn the user if some of the entities have the same name. Also make sure that the name/desc of the DDMs 
  *  don't contain any non-safe characters (such as slashes).
  *
  *
@@ -130,24 +130,31 @@ var fixed = {
 
 	apiPath:							'/api/jsonws/invoke',
 
-	filesEncoding:						'utf8'
-};
+	filesEncoding:						'utf8',
 
-fixed.tableStyle = {
-			head: ['Operation','Name', 'Type', 'To Grp', 'Grp URL'],
-			chars: {
-				'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': '',
-				'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': '',
-				'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': '',
-				'right': '' , 'right-mid': '' , 'middle': ' '
-				},
-			style: {
-				'padding-left': 2,
-				'padding-right': 0,
-				'head': ['yellow']
-				},
-			colWidths: [15, 30, 35, 30, 20]
-		};
+	ignoreDDMs:							[
+										'WIKI-SOCIAL-FTL',
+										'ASSET-TAGS-NAVIGATION-COLOR-BY-POPULARITY-FTL',
+										'SITE-MAP-MULTI-COLUMN-LAYOUT-FTL',
+										'DOCUMENTLIBRARY-CAROUSEL-FTL',
+										'ASSET-CATEGORIES-NAVIGATION-MULTI-COLUMN-LAYOUT-FTL',
+										'BLOGS-BASIC-FTL',
+										'ASSET-PUBLISHER-RICH-SUMMARY-FTL',
+										'LEARNING MODULE METADATA',
+										'MARKETING CAMPAIGN THEME METADATA',
+										'MEETING METADATA',
+										'AUTO_F89C99EC-74A2-4C54-AEB4-472015095F42',
+										'AUTO_9AFF1B46-5A06-49B0-A98B-668BCD5DEBCF',
+										'AUTO_FDFC496B-939A-42BA-8327-63B392D9CB06',
+										'AUTO_B58424F3-CABF-469C-AF9C-6169ABFC39DF',
+										'CONTACTS',
+										'EVENTS',
+										'INVENTORY',
+										'ISSUES TRACKING',
+										'MEETING MINUTES',
+										'TO DO'
+										]
+};
 
 
 var globalClassNameIdsByName = [
@@ -283,6 +290,7 @@ var STEP_START							= 1;
 var STEP_JUST_LOADED_CONFIG				= 2;
 var STEP_JUST_READ_ALL_FROM_SERVER		= 3;
 var STEP_JUST_SAVED_ALL_FILES_TO_DISK	= 4;
+var STEP_JUST_UPLOADED_DDMS				= 5;
 
 router(STEP_START);
 
@@ -310,6 +318,8 @@ function uploadSingleFileToServer() {
 
 	var fileFolders = [];
 
+	// TODO: Change so that only files that actually exists (and are changed) shows up.
+
 	// TODO - Se till att vi får med *alla* saker vi kan ladda upp, t.ex. document/media osv.
 	for (var i = 0; i < globalClassNameIdsByName.length; i++) {
 		if (globalClassNameIdsByName[i].type === 'template' || globalClassNameIdsByName[i].type === 'journalStructure') {
@@ -328,6 +338,7 @@ function uploadSingleFileToServer() {
 			choices: fileFolders
 		}
 		], function( typeAnswers ) {
+			// TODO - check if folder actually exists.
 			fs.readdir(config.filesFolder + '/' + typeAnswers.folder, function (err, files) {
 				if (err) {
 					throw Error(err);
@@ -362,7 +373,7 @@ function uploadSingleFileToServer() {
  * Upload a structure/template
  *
  * @param <String> path and filename.
- * @return <Bool> success.
+ * @return <Object> success.
  */
 
 function uploadFiles(files) {
@@ -396,20 +407,33 @@ function uploadFiles(files) {
 		// one with files that needs updating and one with files that needs to be created,
 		// to be able to present it to the user in a nice way (and avoid) updating things,
 		// which does not need to be updated.
-		for (var x = 0; x < 3; x++) {
+		for (var x = 0; x < states.length ; x++) {
 			filteredUploadObjects = uploadObjects.filter(function(entry) {
 				return entry.status == states[x].status;
 			});
 
-			states[x].table = new Table(fixed.tableStyle);
+			states[x].table = new Table({
+			head: ['Name', 'Type', 'GrpId', 'Group Name'],
+			chars: {
+				'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': '',
+				'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': '',
+				'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': '',
+				'right': '' , 'right-mid': '' , 'middle': ' '
+				},
+			style: {
+				'padding-left': 2,
+				'padding-right': 0,
+				'head': ['yellow']
+				},
+			colWidths: [30, 35, 7]
+		});
 
 			for (var i = 0; i < filteredUploadObjects.length; i++) {
 				states[x].table.push([
-					filteredUploadObjects[i].status,
 					filteredUploadObjects[i].fileName,
 					filteredUploadObjects[i].fileClassObj.friendlyName,
-					filteredUploadObjects[i].group.name + ' (' + filteredUploadObjects[i].group.type + ')',
-					filteredUploadObjects[i].group.friendlyURL
+					filteredUploadObjects[i].group.groupId,
+					filteredUploadObjects[i].group.name + ' (' + filteredUploadObjects[i].group.type + ')'
 				]);
 			}
 
@@ -432,11 +456,11 @@ function uploadFiles(files) {
 					message: "Do you want to send this to the server?",
 					choices: [
 						{
-							name: 'Yes',
+							name: 'Send to server',
 							value: true
 						},
 						{
-							name: 'No',
+							name: 'Abort',
 							value: false
 						}
 					]
@@ -455,15 +479,15 @@ function uploadFiles(files) {
 						}
 
 						getData('[' + fullPayload.join() + ']').then(function (resp) {
-							console.dir('All done');
+							updateGlobalStructureTemplateWithNew(resp);
+							writeToScreen('Files updated!', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
 						}, function (e) {
 							console.dir(e);
-							lrException('Could not upload templates to server!\n');
+							lrException('Could not upload DDMs to server!\n');
 						});
 
 					} else {
-						// Todo, do something on abort
-						console.log('Abort');
+						router(STEP_JUST_UPLOADED_DDMS);
 					}
 				}
 			);
@@ -471,7 +495,7 @@ function uploadFiles(files) {
 
 		} else {
 			writeToScreen('Every file is already up to date\n', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
-			// TODO - maybe route the user somewhere else.
+			router(STEP_JUST_UPLOADED_DDMS);
 		}
 
 	});
@@ -488,6 +512,18 @@ function uploadFiles(files) {
 	// 	// 	lrException(e);
 	// 	// });
 
+}
+
+function updateGlobalStructureTemplateWithNew(retObjs) {
+	//apa lägg in returvärdet från strukturen/templaten i globalStructures/templates
+
+//	console.dir(retObjs);
+
+	for (var i = 0; i < retObjs.length; i++) {
+		
+
+//		dir(getTemplatesSingleValueByPropValue('uuid', retObjs[i].uuid, 'nameCurrentValue'));
+	};
 }
 
 function createUploadObject(file) {
@@ -593,6 +629,7 @@ function createUploadObject(file) {
 			// UPDATE DDM
 
 			if(fileClassObj.type === 'template') {
+				// APA TODO - Byt ut till att hämta temat från strängen vi har i minnet istället.
 				// Download the template we're going to update to get the absolute latest one.
 				getData('{"/ddmtemplate/get-template": {"templateId": ' + thisDDM[0].templateId + '}}', false).then(
 					function (oldTemplate) {
@@ -609,6 +646,7 @@ function createUploadObject(file) {
 						returnObj.group.name = getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'name');
 						returnObj.group.type = getFriendlyNameFromClassNameId(getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'classNameId'));
 						returnObj.group.friendlyURL = getSingleValueFromSitesListByGroupId(oldTemplate.groupId, 'friendlyURL');
+						returnObj.group.groupId = oldTemplate.groupId;
 
 						// Populate payload with data from old template (things we aren't updating)
 						payload = {
@@ -620,12 +658,12 @@ function createUploadObject(file) {
 							cacheable: oldTemplate.cacheable,
 							smallImage: oldTemplate.smallImage,
 							smallImageURL: oldTemplate.smallImageURL,
-							smallImageFile: null
+							smallImageFile: null, // We don't support small images right now.
+							script: newScript
 						};
 
 						// Populate payload with data from old template (things we aren't updating)
 						// but we need to make it into a Map which Liferay wants.
-
 						xmlMapToObj(oldTemplate.name, 'Name')
 						.then(function (resName) {
 							payload.nameMap = resName;
@@ -636,11 +674,7 @@ function createUploadObject(file) {
 						}))
 						.then(
 							function () {
-								payload.script = newScript;
-								payload = JSON.stringify(payload);
-								payload = '{"/ddmtemplate/update-template": ' + payload + '}';
-								returnObj.payload = payload;
-
+								returnObj.payload = '{"/ddmtemplate/update-template": ' + JSON.stringify(payload) + '}';
 								deferred.resolve(returnObj);
 							}
 						);
@@ -723,7 +757,8 @@ function getClassNameIdFromFilePath(file) {
 function showMainMenu() {
 
 	// TODO, remove temp-if
-	if (bolArgs.temp) {
+	if (bolArgs.temp === 'apa') {
+		bolArgs.temp = false;
 		temp();
 	} else if (bolArgs.doSaveAllFilesToDisk) {
 		saveEverythingToFile();
@@ -737,29 +772,39 @@ function showMainMenu() {
 					message: "What do you want to do?",
 					choices: [
 						{
-							name: 'Save all files to disk',
+							name: 'Watch (TODO)',
+							value: ''
+						},
+						{
+							name: 'Download All',
 							value: 'saveAllFilesToDisk'
 						},
 						{
-							name: 'Upload a single file',
+							name: 'Upload Single (TODO)',
 							value: 'uploadSingleFileToServer'
 						},
 						{
-							name: 'TODO Upload Everything',
+							name: 'Upload All (TODO)',
 							value: 'uploadAllFilesToServer'
+						},
+						{
+							name: 'Create new project',
+							value: 'createNewProject'
 						},
 						new inquirer.Separator(),
 						{
 							name: 'Quit',
 							value: 'quit'
 						}
-					],
+					]
 				}
 				], function( answers ) {
 					if (answers.mainMenu === 'uploadSingleFileToServer') {
 						uploadSingleFileToServer();
 					} else if (answers.mainMenu === 'saveAllFilesToDisk') {
 						saveEverythingToFile();
+					} else if (answers.mainMenu === 'createNewProject') {
+						createProject();
 					} else {
 						console.log('Bye bye!');
 					}
@@ -891,6 +936,8 @@ function router(step) {
 			showMainMenu();
 		} else if (step === STEP_JUST_SAVED_ALL_FILES_TO_DISK ) {
 			showMainMenu();
+		} else if (step === STEP_JUST_UPLOADED_DDMS ) {
+			showMainMenu();
 		} else {
 			lrException('Unknown next step!');
 		}
@@ -947,7 +994,7 @@ function saveStructuresAndTemplatesToFile(e) {
 	var filesPath;
 
 
-	for (i = 0; i < e.length; ++i) {
+	for (var i = 0; i < e.length; ++i) {
 			filePath = config.filesFolder + '/' + getFilesPathFromClassNameId(e[i].classNameId);
 
 			// Figure out what kind of data we're dealing with and get a filename/path and the content.
@@ -1035,6 +1082,8 @@ function getTemplates() {
 	writeToScreen('Downloading templates', SEVERITY_NORMAL, SCREEN_PRINT_INFO);
 	var payload = [];
 
+	//boll
+
 	for (var i = 0; i < globalSites.length; ++i) {
 		for (var ii = 0; ii < globalClassNameIdsByName.length; ii++) {
 			if (globalClassNameIdsByName[ii].getTemplate) {
@@ -1048,7 +1097,11 @@ function getTemplates() {
 			var curTemplate = [];
 			for (var y = 0; y < e.length; ++y) {
 				for (i = 0; i < e[y].length; ++i) {
-					globalTemplates.push(e[y][i]);
+
+					// Check if there's a DDM we should ignore
+					if(!_.contains(config.ignoreDDMs, e[y][i].templateKey)) {
+						globalTemplates.push(e[y][i]);
+					}
 				}
 			}
 			saveToCache(globalTemplates, fixed.cacheTemplatesFilename);
@@ -1108,6 +1161,15 @@ function getStructuresFromListOfSites() {
 				return entry.classNameId != idRawMetaDataProcessor;
 			});
      
+			// Check if there's a DDM we should ignore
+			e = e.filter(function(entry) {
+				if(_.contains(config.ignoreDDMs, entry.structureKey)) {
+					return false;
+				} else {
+					return true;
+				}
+			});
+
 			globalStructures = e;
 			saveToCache(globalStructures, fixed.cacheStructuresFilename);
 
@@ -1225,7 +1287,9 @@ function loadProject(projectJson) {
 		var hosts = [];
 
 		try {
+
 			config.filesFolder = project.filesPath;
+			config.ignoreDDMs = project.ignoreDDMs;
 			
 			// Check if user supplied a project as an argument or if we should present a gui.
 			if (bolArgs.hasProject) {
@@ -1308,8 +1372,13 @@ function createProject() {
 	console.log(heading('Initializing a New Project'));
 	console.log('    Need some data to set up the project:');
 	console.log('    - Project Name. You\'ll use this every time you run the script. Pick something short.');
-	console.log('    - A path to where to save DDM files (structures, templates, etc) on your local machine ');
+	console.log('    - The path to the DDM files (structures, templates, etc) on your local machine. ');
+	console.log('      Folder will be created if path does not exist. ');
 	console.log('      This is the folder you want to check-in to your version control system.');
+	console.log('    - Whether we should upload/download Liferay default DDMs or not');
+	console.log();
+	console.log('      Settings will be saved to ' + clc.yellow(fixed.settingsFolder + '/' + fixed.projectsFolder + '/projectname.json'));
+	console.log('      and may be edited at any time');
 	console.log();
 
 	// Define Project Questions
@@ -1341,6 +1410,21 @@ function createProject() {
 			filter: function(value) {
 				return removeTrailingSlash(value);
 			}
+		},
+		{
+			type: "list",
+			name: "ignoreLRDefault",
+			message: "Should I handle or ignore Liferay default templates/structures?",
+			choices: [
+				{
+					name: 'Include Liferay Defaults',
+					value: false
+				},
+				{
+					name: 'Ignore Liferay Defaults',
+					value: true
+				}
+			]
 		}
 	];
 
@@ -1492,10 +1576,22 @@ function createProject() {
 						} else {
 							// If the user don't want to add another server, save the configuration to file
 							// and send the user to the 'Select Projects' screen.
+
+							// Append hosts
 							answersProject.hosts = hostsOut;
+
+							// Add templates to ignore.
+							if (answersProject.ignoreLRDefault) {
+								answersProject.ignoreDDMs = fixed.ignoreDDMs;
+							} else {
+								answersProject.DONTignoreDDMs = fixed.ignoreDDMs;
+							}
+							delete answersProject.ignoreLRDefault;
+
 							fs.outputFileSync(fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + answersProject.projectName.toLowerCase() + '.json', JSON.stringify(answersProject, null, "  "));
 							writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
 							writeToScreen('Project created!', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
+							writeToScreen('Settings saved to ' + fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + answersProject.projectName.toLowerCase() + '.json', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
 							writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
 							selectProject();
 						}
@@ -1522,6 +1618,19 @@ function getSingleValueFromSitesListByGroupId(groupId, prop) {
 
 	if (ret.length === 1) {
 		return ret[0][prop];
+	} else {
+		return undefined;
+	}
+}
+
+function getTemplatesSingleValueByPropValue(searchProperty, matchValue, returnProperty) {
+	var ret = [];
+	ret = globalSites.filter(function(entry) {
+		return entry[searchProperty] == matchValue;
+	});
+
+	if (ret.length === 1) {
+		return ret[0][returnProperty];
 	} else {
 		return undefined;
 	}
