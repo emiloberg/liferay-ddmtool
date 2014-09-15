@@ -97,6 +97,11 @@ var Table		= require('cli-table');
 
 
 
+// My
+var PortletKeys = require("./lib/portletkeys.js");
+
+
+
 var heading = clc.blue;
 
 var config = {};
@@ -305,8 +310,9 @@ function temp() {
 	uploadFiles([
 		// '/Users/emiloberg/code/test-wcm/journal/structures/Test Structure.xml'
 		// '/Users/emiloberg/code/test-wcm/journal/templates/Test Structure.ftl',
-		'/Users/emiloberg/code/test-wcm/journal/templates/Ny Test Structure.ftl',
-		//'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/My Asset Publisher.ftl',
+		'/Users/emiloberg/code/test-wcm/journal/templates/APA2 Template.ftl',
+		'/Users/emiloberg/code/test-wcm/journal/templates/APA3 Template.ftl',
+		// '/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/My Asset Publisher.ftl',
 		// '/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Second Asset Publisher.ftl'
 		// '/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Global AP.ftl'
 //		'/Users/emiloberg/code/test-wcm/application_display_template/asset_publisher/Rich Summary.ftl'
@@ -388,6 +394,24 @@ function uploadFiles(files) {
 	var preparePayloadPromises = files.map(function(path) {
 		return createUploadObject(path);
 	});
+
+
+
+// TODO: Se till att det här sker sekventiellt istället. Dvs typ typ:
+// Testa genom att skicka in 2 st NYA journal templates så att 2 st input-rutan triggas.
+
+
+// However, if you want to run a dynamically constructed sequence of functions, you'll want something like this:
+
+// var funcs = [foo, bar, baz, qux];
+
+// var result = Q(initialVal);
+// funcs.forEach(function (f) {
+//     result = result.then(f);
+// });
+// return result;	
+
+
 
 	// TODO: Handle if we get rejects! E.g because there are no structures uploaded
 	Q.all(preparePayloadPromises).then(function (uploadObjects) {
@@ -486,7 +510,7 @@ function uploadFiles(files) {
 						getData('[' + fullPayload.join() + ']').then(function (resp) {
 							updateGlobalStructureTemplateWithNew(resp);
 							writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
-							writeToScreen('Files updated!', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
+							writeToScreen('Files updated/created!', SEVERITY_NORMAL, SCREEN_PRINT_SAVE);
 						}, function (e) {
 							console.dir(e);
 							lrException('Could not upload DDMs to server!\n');
@@ -537,6 +561,8 @@ function createUploadObject(file) {
 
 	var fileClassObj = getClassNameIdFromFilePath(file);
 	var fileName = filenameAndPathToFilename(file);
+	var fileLanguageType = filenameToLanguageType(file);
+
 	var newScript = '';
 	var currentDDMs = [];
 	var thisDDM = [];
@@ -551,6 +577,11 @@ function createUploadObject(file) {
 		group: {}
 	};
 	var journalStructureClassNameId = '';
+	var questionStructures = [];
+
+	var answersSite;
+	var answersMetadata;
+	var answersStructure;
 
 	// If file actually is a DDM
 	if (fileClassObj != -1) {
@@ -660,17 +691,20 @@ function createUploadObject(file) {
 				}
 
 			} else {
-				// TODO: Do the same thing for all other new templates/structures
+				// TODO: Do the same thing for all other (non-journal template) new templates/structures
 			}
+
+
+			// TODO: Om den nya journal templatens namn är det samma som en (1) giltig journal structures namn
+			// så bind automagiskt till den utan att frågan användaren.
 
 			// Check that we have at least one site with a journal structure,
 			// to which we can bind the template.
 			if (hasAtLeastOneSiteWithStructures) { // Should probably change this to handle non-journal template files.
 
-				writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_HEADING)
-				writeToScreen('Preparing to upload file', SEVERITY_NORMAL, SCREEN_PRINT_HEADING)
-				writeToScreen(returnObj.fileName + ' (Type: ' + returnObj.fileClassObj.friendlyName + ')', SEVERITY_NORMAL, SCREEN_PRINT_FILE)
-				writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_HEADING)				
+				writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_HEADING);
+				writeToScreen('"' + returnObj.fileName + '" (Type: ' + returnObj.fileClassObj.friendlyName + ')', SEVERITY_NORMAL, SCREEN_PRINT_FILE);
+				writeToScreen('', SEVERITY_NORMAL, SCREEN_PRINT_HEADING);
 
 				inquirer.prompt([
 					{
@@ -680,11 +714,55 @@ function createUploadObject(file) {
 						choices: questionsSites
 					}
 					], function( answersSite ) {
-						// console.dir(answersSite.siteSelection);
-						// console.dir('fileName' + ' is ' + fileClassObj.friendlyName);
-						// work here
+
+						for (var i = 0; i < answersSite.siteSelection.possibleStructures.length; i++) {
+							questionStructures.push({
+								name: answersSite.siteSelection.possibleStructures[i].nameCurrentValue,
+								value: answersSite.siteSelection.possibleStructures[i]
+								});
+						}
+
+						inquirer.prompt([
+							{
+								type: "list",
+								name: "structureSelection",
+								message: "Which structure do you want to bind the template to",
+								choices: questionStructures
+							}
+							], function( answersStructure ) {
+										
 
 
+										// Set some values in our return object to be able to do a nice print to the user.
+										returnObj.group.description		= getSingleValueFromSitesListByGroupId(answersSite.siteSelection.groupId, 'description');
+										returnObj.group.name			= getSingleValueFromSitesListByGroupId(answersSite.siteSelection.groupId, 'name');
+										returnObj.group.type			= getFriendlyNameFromClassNameId(getSingleValueFromSitesListByGroupId(answersSite.siteSelection.groupId, 'classNameId'));
+										returnObj.group.friendlyURL		= getSingleValueFromSitesListByGroupId(answersSite.siteSelection.groupId, 'friendlyURL');
+										returnObj.group.groupId			= answersSite.siteSelection.groupId;
+
+										payload = {
+											groupId: answersSite.siteSelection.groupId,
+											classNameId: getClassNameIdFromClazz('com.liferay.portlet.dynamicdatamapping.model.DDMStructure'),
+											classPK: answersStructure.structureSelection.structureId,
+											nameMap: strToJsonMap(returnObj.fileName),
+											descriptionMap: {},
+											type: 'display',
+											mode: '',
+											language: fileLanguageType,
+											script: newScript,
+											'+serviceContext': 'com.liferay.portal.service.ServiceContext',
+											'serviceContext.addGroupPermissions': true,
+											'serviceContext.addGuestPermissions': true,
+											'serviceContext.attributes': { refererPortletName: PortletKeys.JOURNAL }
+											// 15 = journal
+										};
+
+										returnObj.payload = '{"/ddmtemplate/add-template": ' + JSON.stringify(payload) + '}';
+
+										deferred.resolve(returnObj);
+
+							}
+						);
 
 					}
 				);
@@ -797,6 +875,17 @@ function createUploadObject(file) {
 
 	return deferred.promise;
 
+}
+
+function strToJsonMap(str) {
+	var ret = {};
+	str = str.trim();
+	if (str.length > 0) {
+		ret[config.defaultLocale] = str;
+	} else {
+		ret = {};
+	}
+	return ret;
 }
 
 function cleanXmlMapToObj(str) {
@@ -1395,79 +1484,76 @@ function loadProject(projectJson) {
 
 		var hosts = [];
 
-		try {
-
-			config.filesFolder = project.filesPath;
-			config.ignoreDDMs = project.ignoreDDMs;
-			
-			// Check if user supplied a project as an argument or if we should present a gui.
-			if (bolArgs.hasProject) {
-				if (project.hosts.length === 1) {
-					// If user supplied a project and there's only one server in the config
-					// load that config
-					config.host			= project.hosts[0].host;
-					config.username		= project.hosts[0].username;
-					config.password		= project.hosts[0].password;
-					router(STEP_JUST_LOADED_CONFIG);
-				} else {
-					// If the user supplied a project but there's more than one,
-					// server in the config file, check if the user also supplied an
-					// argument for which server to use.
-					if (bolArgs.hasServer === true) {
-						var currentServer = project.hosts.filter(function(server) {
-							return server.name === argv.server;
-						});
-
-						if (currentServer.length > 0) {
-							config.host			= currentServer[0].host;
-							config.username		= currentServer[0].username;
-							config.password		= currentServer[0].password;
-							router(STEP_JUST_LOADED_CONFIG);
-						} else {
-							lrException('Server \'' + argv.server + '\' does not exist');
-						}
-					} else {
-						lrException('If a project (--project) with more than one server is supplied\nyou need to supply a server (--server) as well');
-					}
-
-				}
+		config.defaultLocale = project.defaultLocale;
+		config.filesFolder = project.filesPath;
+		config.ignoreDDMs = project.ignoreDDMs;
+		
+		// Check if user supplied a project as an argument or if we should present a gui.
+		if (bolArgs.hasProject) {
+			if (project.hosts.length === 1) {
+				// If user supplied a project and there's only one server in the config
+				// load that config
+				config.host			= project.hosts[0].host;
+				config.username		= project.hosts[0].username;
+				config.password		= project.hosts[0].password;
+				router(STEP_JUST_LOADED_CONFIG);
 			} else {
-				if (project.hosts.length === 1) {
-					config.host			= project.hosts[0].host;
-					config.username		= project.hosts[0].username;
-					config.password		= project.hosts[0].password;
-					router(STEP_JUST_LOADED_CONFIG);
-				} else {
-					for (var i = 0; i < project.hosts.length; ++i) {
-						hosts.push({
-							name: project.hosts[i].name,
-							value: {
-								host: project.hosts[i].host,
-								username: project.hosts[i].username,
-								password: project.hosts[i].password
-							}
-						});
-					}
+				// If the user supplied a project but there's more than one,
+				// server in the config file, check if the user also supplied an
+				// argument for which server to use.
+				if (bolArgs.hasServer === true) {
+					var currentServer = project.hosts.filter(function(server) {
+						return server.name === argv.server;
+					});
 
-					inquirer.prompt([{
-						type: "list",
-						name: "selectHosts",
-						message: "Which host do you want to work with?",
-						choices: hosts
-					}
-					], function(answers) {
-						config.host			= answers.selectHosts.host;
-						config.username		= answers.selectHosts.username;
-						config.password		= answers.selectHosts.password;
-
+					if (currentServer.length > 0) {
+						config.host			= currentServer[0].host;
+						config.username		= currentServer[0].username;
+						config.password		= currentServer[0].password;
 						router(STEP_JUST_LOADED_CONFIG);
+					} else {
+						lrException('Server \'' + argv.server + '\' does not exist');
+					}
+				} else {
+					lrException('If a project (--project) with more than one server is supplied\nyou need to supply a server (--server) as well');
+				}
+
+			}
+		} else {
+			if (project.hosts.length === 1) {
+				config.host			= project.hosts[0].host;
+				config.username		= project.hosts[0].username;
+				config.password		= project.hosts[0].password;
+				router(STEP_JUST_LOADED_CONFIG);
+			} else {
+				for (var i = 0; i < project.hosts.length; ++i) {
+					hosts.push({
+						name: project.hosts[i].name,
+						value: {
+							host: project.hosts[i].host,
+							username: project.hosts[i].username,
+							password: project.hosts[i].password
+						}
 					});
 				}
-			}
 
-		} catch(catchErr) {
-			lrException('Could not understand content of config file ' + fixed.settingsFolder + '/' + fixed.projectsFolder + '/' + projectJson);
+				inquirer.prompt([{
+					type: "list",
+					name: "selectHosts",
+					message: "Which host do you want to work with?",
+					choices: hosts
+				}
+				], function(answers) {
+					config.host			= answers.selectHosts.host;
+					config.username		= answers.selectHosts.username;
+					config.password		= answers.selectHosts.password;
+
+					router(STEP_JUST_LOADED_CONFIG);
+				});
+			}
 		}
+
+
 
 	});
 }
@@ -1518,6 +1604,23 @@ function createProject() {
 			message: "Path to files on this machine",
 			filter: function(value) {
 				return removeTrailingSlash(value);
+			}
+		},
+		{
+			type: "input",
+			name: "defaultLocale",
+			message: "Default locale. Just press enter for",
+			default: "en_US",
+			validate: function( value ) {
+				var pass = value.match(/^[a-z\_]{2}\_[A-Z]{2}$/);
+				if (pass) {
+					return true;
+				} else {
+					return "Locale must be by the standard \"en_US\"";
+				}
+			},
+			filter: function(value) {
+				return value.trim();
 			}
 		},
 		{
@@ -1810,6 +1913,24 @@ function filenameAndPathToFilename(path, showExtension) {
 		path = path.substr(0, path.lastIndexOf('.'));
 	}
 	return path;
+}
+
+function filenameToLanguageType(filename) {
+	if (filename.indexOf('.') > 0) {
+		languageType = filename.substr(filename.indexOf('.')+1).toLowerCase();
+
+		if (languageType === 'ftl') {
+			return 'ftl';
+		} else if (languageType === 'vm') {
+			return 'vm';
+		} else {
+			lrException('Could not extract Language Type from filename \'' + filename + '\'');
+		}
+	} else {
+		lrException('Could not extract Language Type from filename \'' + filename + '\'');
+	}
+
+
 }
 
 function stringifyNumber(n) {
