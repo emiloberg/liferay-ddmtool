@@ -54,11 +54,10 @@
  */
 
 
-
 var Constants                       = require('./lib/SingleConstants.js');
 var argv							= require('minimist')(process.argv.slice(2));
 var saveArgs	             		= require('./lib/router--save-cli-arguments.js');
 var router	             			= require('./lib/router.js');
 
 saveArgs(argv);
-router(Constants.STEP_START);
+router(Constants.fetch('STEP_START'));
