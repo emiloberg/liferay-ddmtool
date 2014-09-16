@@ -1,0 +1,18 @@
+{
+  "projectName": "moh",
+  "filesPath": "/Users/emiloberg/Desktop/new-out",
+  "hosts": [
+    {
+      "name": "local",
+      "host": "http://localhost:8080",
+      "username": "test@liferay.com",
+      "password": "test"
+    },
+    {
+      "name": "prod",
+      "host": "http://15.126.227.132",
+      "username": "superadmin",
+      "password": "icT@icT@1234"
+    }
+  ]
+}
