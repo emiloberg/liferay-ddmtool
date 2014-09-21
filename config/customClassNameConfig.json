@@ -1,0 +1,9 @@
+[
+    {
+        "filesPath": "generic_record_set",
+        "friendlyName": "Generic Record Set",
+        "clazz": "com.monator.moh.genericddm.model.GenericRecordSet",
+        "type": "structure",
+        "getTemplate": false
+    }
+]

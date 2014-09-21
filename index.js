@@ -58,6 +58,9 @@ var Constants                       = require('./lib/SingleConstants.js');
 var argv							= require('minimist')(process.argv.slice(2));
 var saveArgs	             		= require('./lib/router--save-cli-arguments.js');
 var router	             			= require('./lib/router.js');
+var LrClassNameConfig	    		= require('./lib/SingleLrClassNameConfig.js');
+
 
 saveArgs(argv);
+LrClassNameConfig.loadCustomClassNames();
 router(Constants.fetch('STEP_START'));
