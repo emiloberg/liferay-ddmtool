@@ -5,6 +5,7 @@
         "clazz": "com.monator.moh.genericddm.model.GenericRecordSet",
         "getTemplate": false,
         "mayHaveTemplates": true,
+        "mayHaveStructures": true,
         "structure": "com.liferay.portlet.dynamicdatamapping.model.DDMStructure"
     }
 ]
