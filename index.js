@@ -54,9 +54,9 @@
  */
 
 
-var Constants                       = require('./lib/SingleConstants.js');
+var Constants                       = require('./lib/Constants.js');
 var argv							= require('minimist')(process.argv.slice(2));
-var saveArgs	             		= require('./lib/router--save-cli-arguments.js');
+var saveArgs	             		= require('./lib/routerSaveArgs.js');
 var router	             			= require('./lib/router.js');
 var LrClassNameConfig	    		= require('./lib/SingleLrClassNameConfig.js');
 
