@@ -1,14 +1,18 @@
 {
-  "name": "qtest",
-  "version": "0.0.0",
-  "description": "",
+  "name": "liferay-ddmtool",
+  "version": "0.8.0",
+  "description": "Tool for authoring, uploading, downloading and synchronizing Liferay DDM related stuff (Structures and Templates) across environments",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
+  "author": "Emil Oberg <www.emiloberg.se>",
+  "license": "MIT",
+  "repository" : { 
+    "type" : "git",
+    "url" : "https://github.com/emiloberg/liferay-ddmtool.git"
+  },
+  "dependencies": {
     "q": "^1.0.1",
     "superagent": "^0.18.2",
     "cli-color": "^0.3.2",
@@ -23,6 +27,7 @@
     "cli-table": "^0.3.0",
     "watch": "^0.11.0",
     "diff": "^1.0.8",
-    "chalk": "^0.5.1"
+    "chalk": "^0.5.1",
+    "node-print": "0.0.4"
   }
 }
