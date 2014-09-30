@@ -28,7 +28,8 @@
     "watch": "^0.11.0",
     "diff": "^1.0.8",
     "chalk": "^0.5.1",
-    "node-print": "0.0.4"
+    "node-print": "0.0.4",
+    "keypress": "^0.2.1"
   },
   "devDependencies": {
     "grunt": "^0.4.5",
