@@ -6,10 +6,10 @@ Command Line Tool for authoring, uploading, downloading and synchronizing Lifera
 
 ### Abilities
 
-* **Upload** ddm stuff - structures and templates - from local (version controlled!) repository to server (localhost, live, dev and whatnot).
-* **Download** ddm stuff from server to local repository.
-* **Watch local repository for changes** and when changed immediately upload the file to server.
-* **Show diffs** between server and local repository (files only available locally/on server)
+* **Upload** ddm stuff - structures and templates - from local (version controlled!) repositories to server (localhost, live, dev and whatnot).
+* **Download** ddm stuff from server to local repositories.
+* **Watch local folder for changes** and when changed immediately upload the file to server.
+* **Show diffs** between server and local repositories (files only available locally/on server)
 
 ### What is "DDM related stuff"?
 
@@ -22,8 +22,8 @@ Command Line Tool for authoring, uploading, downloading and synchronizing Lifera
 ## Installation
 
 1. Make sure [Node.js](http://nodejs.org/) is installed by running `node -v` in your command line. If not, [install Node](http://nodejs.org/).
-2. Clone the repository to a directory of your choice.
-3. cd into that directory and run `npm install` to install dependencies
+2. Clone this repository to a directory of your choice.
+3. cd into that directory and run `npm install` to install dependencies.
 4. run `node index.js` to run this App.
 
 If this is the first time you use this App. You most probably want to download all structures and templates to a local folder.
@@ -83,23 +83,24 @@ index.js -i --project <awesomeproject> --server <servername>
 
 
 ### Download all DDM Stuff
-Want to get all structures and templates from a server to your local disk? Just run the app and select _"Download All"_
+Want to save all structures and templates from a server to your local disk? Just run the app and select _"Download All"_
 
 **Pro tip:**
-Run DDM Tool with the `-d`/`--download` flag to go straight into diffs mode:
+Run DDM Tool with the `-d`/`--download` flag to go straight into download mode:
 
 ```
 index.js -d --project <awesomeproject> --server <servername>
 ```
 
-### Command line arguments
-You may also start run the App with some command line arguments. One common way to start the app is `node index.js --project <project-name> --server <server-name>` to skip the project and server selection menues. Run with `--help` to get all available arguments.
+## Command line arguments
+You may also start the App with some command line arguments. One common way to start the app is `node index.js --project <project-name> --server <server-name>` to skip the project and server selection menues. Run with `--help` to get all available arguments.
 
 The App is (yet) not published to [NPM](https://www.npmjs.org/) and may therefor not be installed "globally". If you want easier access to the tool, add it as an alias in your shell configuration. E.g. edit `~/.bash_profile` (for bash) or `~/.zshrc` for Z shell and add the line `alias ddm="node /PATH/TO/liferay-ddmtool/index.js"` and then just run with `ddm` from your console.
 
 ## Limitations
 * Currently there's no way of syncing *removal* of files. If you remove a file on server, you must remove it locally and vice versa.
 * Much of the magic comes form matching names. If there's a journal template on the server named 'My Template' the app will try to match it to the file project/journal/templates/My Template.ftl (or .vm). Therefor, if you rename a structure or template, it'll be seen as a new file.
+* As we at [Monator](http://www.monator.com) are all running Macs, the DDM Tool hasn't been tested on Windows.
 
 ## Settings
 All config files are saved as JSON in `$USERHOME/.ddmtool`.
@@ -141,7 +142,7 @@ For each project, there's a project configuration in `$USERHOME/.ddmtool/config/
 
 #### Project Settings
 * `projectName`. Your project name. App may be called with command line argument `--project myproject` to skip the project selection menu.
-* `filesPath`. Full path to where your DDMs are. This is typically the folder you want to have under versioning control.
+* `filesPath`. Full path to where your DDMs are. This is typically the folder you want to have under version control.
 * `defaultLocale`. New DDMs will be uploaded with the name/description in this locale.
 
 ##### Host(s)
