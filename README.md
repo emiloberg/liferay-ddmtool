@@ -50,7 +50,7 @@ Run DDM Tool with the `-w`/`--watch` flag to go straight into watch mode:
 index.js -w --project <awesomeproject> --server <servername>
 ```
 
-### Settings up a new environment, such as a new live/dev server
+### Setting up a new environment, such as a new live/dev server
 ![Screenshot of Upload](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/screen-upload.png)
 
 Checkout all structures and templates from your resposity, run the DDM Tool and select _"Upload all"_
