@@ -1,6 +1,6 @@
 {
   "name": "liferay-ddmtool",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Tool for authoring, uploading, downloading and synchronizing Liferay DDM related stuff (Structures and Templates) across environments",
   "main": "index.js",
   "scripts": {
