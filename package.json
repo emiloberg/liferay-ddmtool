@@ -20,7 +20,6 @@
     "inquirer": "^0.6.0",
     "minimist": "^1.1.0",
     "underscore": "^1.6.0",
-    "bluebird": "^2.3.0",
     "cli": "^0.6.4",
     "glob": "^4.0.5",
     "xml2js": "^0.4.4",
@@ -34,7 +33,6 @@
   "devDependencies": {
     "grunt": "^0.4.5",
     "grunt-contrib-jshint": "^0.10.0",
-    "jshint-stylish": "^1.0.0",
     "jshint-table-reporter": "^0.1.0",
     "grunt-bump": "0.0.15"
   }
