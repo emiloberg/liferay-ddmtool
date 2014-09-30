@@ -1,5 +1,8 @@
 #Liferay DDM Tool
-Command Line Tool for authoring, uploading, downloading and synchronizing Liferay DDM related stuff (Structures and Templates) across environments.
+Command Line Tool for authoring, uploading, downloading and synchronizing Liferay DDM related stuff (Structures and Templates) across environments. All transactions are done over JSON Web Services.
+
+
+![Flowchart of DDM Tool](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/flowchart-main.png)
 
 ### Abilities
 
@@ -16,14 +19,6 @@ Command Line Tool for authoring, uploading, downloading and synchronizing Lifera
 * Document & Media; Metadata Set Definitions and Document Type Definitions
 * All structures and templates for portlets you build yourself.
 
-### Common use cases
-
-* Putting structures and templates under **version control** (why this is a good thing needs no explanation).
-* When developing templates, having the Liferay DDM Tool in "watch mode" which **automagically uploads all changes to the (localhost) development server** so that changes are going into effect immediately.
-* **Settings up a new environment**, such as a new live server or a new development server.
-* **Deploying all structures and templates** from repository to the live server as a part of the release process.
-* Making sure that each environment has the same structures and templates with a little help from the diff function in the Liferay DDM Tool.
-
 ## Installation
 
 1. Make sure [Node.js](http://nodejs.org/) is installed by running `node -v` in your command line. If not, [install Node](http://nodejs.org/).
@@ -31,12 +26,80 @@ Command Line Tool for authoring, uploading, downloading and synchronizing Lifera
 3. cd into that directory and run `npm install` to install dependencies
 4. run `node index.js` to run this App.
 
+If this is the first time you use this App. You most probably want to download all structures and templates to a local folder.
+
+1. Create a new project by following the wizard in the App.
+2. Select the just created project and choose "_Download All_"
+3. A folder containing all structures and templates has now been created in the path you selected when you created the project. Maybe you want to make this into a git repository?
+
+## Common use cases
+
+### Version contol
+The DDM tool will upload (and download) files from a folder on your local machine to a Liferay server of your choice. If you put that local folder under version control you may check in and out your structures and templates just as any other source code.
+
+### Live template development in the editor/IDE of your choice.
+![Screenshot of Watch mode](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/screen-watching.png)
+When developing templates, set the Liferay DDM Tool in "watch mode" and as soon as you save a template in your favorite editor, it'll upload to the Liferay server and is used immediately.
+
+Usually you want to upload files to your _localhost_ development environment.
+
+**Pro tip:**
+Run DDM Tool with the `-w`/`--watch` flag to go straight into watch mode:
+
+```
+index.js -w --project <awesomeproject> --server <servername>
+```
+
+### Settings up a new environment, such as a new live/dev server
+![Screenshot of Upload](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/screen-upload.png)
+
+Checkout all structures and templates from your resposity, run the DDM Tool and select _"Upload all"_
+
+**Pro tip:**
+Run DDM Tool with the `-u`/`--upload` flag to upload all files without any menu selections.
+
+```
+index.js -u --project <awesomeproject> --server <servername>
+```
+
+
+### Deploying all to the live server as a part of the release process
+Just as if you were setting up a new environment, just checkout all ddm stuff and run _"Upload all"_ to deploy all structures and templates.
+
+If you just want to deploy _some_ of the files, go into _"Find Diffs"_ > _"Select and upload files which differs"_, and pick the files you want to deploy.
+
+
+### Making sure that each environment have the same structures and templates
+![Screenshot of Diff](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/screen-diff.png)
+
+Start up the DDM Tool and go into _"Find Diffs"_. From there you may show all diffs straight from the command line, open an external diff tool (see _Project settings_ below) or upload/download diffing files.
+
+**Pro tip:**
+Run DDM Tool with the `-i`/`--diffs` flag to go straight into diffs mode:
+
+```
+index.js -i --project <awesomeproject> --server <servername>
+```
+
+
+### Download all DDM Stuff
+Want to get all structures and templates from a server to your local disk? Just run the app and select _"Download All"_
+
+**Pro tip:**
+Run DDM Tool with the `-d`/`--download` flag to go straight into diffs mode:
+
+```
+index.js -d --project <awesomeproject> --server <servername>
+```
+
+### Command line arguments
+You may also start run the App with some command line arguments. One common way to start the app is `node index.js --project <project-name> --server <server-name>` to skip the project and server selection menues. Run with `--help` to get all available arguments.
+
 The App is (yet) not published to [NPM](https://www.npmjs.org/) and may therefor not be installed "globally". If you want easier access to the tool, add it as an alias in your shell configuration. E.g. edit `~/.bash_profile` (for bash) or `~/.zshrc` for Z shell and add the line `alias ddm="node /PATH/TO/liferay-ddmtool/index.js"` and then just run with `ddm` from your console.
 
-## Running
-Run Liferay DDM Tool as specified above.
-
-First time you run the App, you'll be asked to define your first project. You'll always have the option to create new projects inside the App. If you want to edit an old project, do so by editing the configuration file(s) as specified in the section _Project Configuration Files_  below.
+## Limitations
+* Currently there's no way of syncing *removal* of files. If you remove a file on server, you must remove it locally and vice versa.
+* Much of the magic comes form matching names. If there's a journal template on the server named 'My Template' the app will try to match it to the file project/journal/templates/My Template.ftl (or .vm). Therefor, if you rename a structure or template, it'll be seen as a new file.
 
 ## Settings
 All config files are saved as JSON in `$USERHOME/.ddmtool`.
