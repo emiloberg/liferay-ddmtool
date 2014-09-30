@@ -8,9 +8,9 @@
   },
   "author": "Emil Oberg <www.emiloberg.se>",
   "license": "MIT",
-  "repository" : { 
-    "type" : "git",
-    "url" : "https://github.com/emiloberg/liferay-ddmtool.git"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/emiloberg/liferay-ddmtool.git"
   },
   "dependencies": {
     "q": "^1.0.1",
@@ -29,5 +29,12 @@
     "diff": "^1.0.8",
     "chalk": "^0.5.1",
     "node-print": "0.0.4"
+  },
+  "devDependencies": {
+    "grunt": "^0.4.5",
+    "grunt-contrib-jshint": "^0.10.0",
+    "jshint-stylish": "^1.0.0",
+    "jshint-table-reporter": "^0.1.0",
+    "grunt-bump": "0.0.15"
   }
 }
