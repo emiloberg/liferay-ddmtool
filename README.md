@@ -37,7 +37,7 @@ If this is the first time you use this App. You most probably want to download a
 ### Version contol
 The DDM tool will upload (and download) files from a folder on your local machine to a Liferay server of your choice. If you put that local folder under version control you may check in and out your structures and templates just as any other source code.
 
-### Live template development in the editor/IDE of your choice.
+### Live template development in the editor/IDE of your choice
 ![Screenshot of Watch mode](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/screen-watching.png)
 When developing templates, set the Liferay DDM Tool in "watch mode" and as soon as you save a template in your favorite editor, it'll upload to the Liferay server and is used immediately.
 
@@ -99,7 +99,9 @@ The App is (yet) not published to [NPM](https://www.npmjs.org/) and may therefor
 
 ## Limitations
 * Currently there's no way of syncing *removal* of files. If you remove a file on server, you must remove it locally and vice versa.
+* Every Template _must_ be assigned to a Structure. Don't create any templates on the Liferay server which does not have a structure connected to it.
 * Much of the magic comes form matching names. If there's a journal template on the server named 'My Template' the app will try to match it to the file project/journal/templates/My Template.ftl (or .vm). Therefor, if you rename a structure or template, it'll be seen as a new file.
+* There may be no exotic characters in the structure/template names (nothing which is not valid filename on an old Windows machine, so no slash, no comma, etc).
 * As we at [Monator](http://www.monator.com) are all running Macs, the DDM Tool hasn't been tested on Windows.
 
 ## Settings
@@ -164,7 +166,7 @@ By default, the App will look for Liferay standard DDM entities (such as structu
 
 If you want the App to be able to handle custom structures and templates for custom DDM entities you may create a `customClassNameConfig.json` file in `$USERHOME/.ddmtool/config/`.
 
-1. Figure out the className of the new structure/template by searching the querying for `select value from classname_ where classNameId = 12345`. If the App finds a structure/template it does not recognize, it will tell you. It'll also tell you the server classNameId of that structure/template which you use in the query.
+1. Figure out the className of the new structure/template by querying the database for `select value from classname_ where classNameId = 12345`. If the App finds a structure/template it does not recognize, it will tell you. It'll also tell you the server classNameId of that structure/template which you'll use in the query.
 2. Create/update the `customClassNameConfig.json` file, like below:
 
 #### Sample Custom Class Name Configuration

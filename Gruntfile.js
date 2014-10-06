@@ -5,8 +5,7 @@ module.exports = function(grunt) {
 			options: {
 				reporter: require('jshint-table-reporter'),
 				node: true
-			},
-			jshintrc: '.jshintrc',
+			}
 		},
 		bump: {
 			options: {
