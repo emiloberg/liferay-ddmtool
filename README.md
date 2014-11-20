@@ -118,6 +118,7 @@ For each project, there's a project configuration in `$USERHOME/.ddmtool/config/
   "filesPath": "/code/ddm-repo",
   "defaultLocale": "en_US",
   "externalDiff": "/usr/bin/opendiff %1 %2",
+  "watchIgnorePattern": "^(\\#.*|.*\\~)$",
   "hosts": [
     {
       "name": "local",
@@ -146,6 +147,7 @@ For each project, there's a project configuration in `$USERHOME/.ddmtool/config/
 * `projectName`. Your project name. App may be called with command line argument `--project myproject` to skip the project selection menu.
 * `filesPath`. Full path to where your DDMs are. This is typically the folder you want to have under version control.
 * `defaultLocale`. New DDMs will be uploaded with the name/description in this locale.
+* `watchIgnorePattern`. Some editors create temporary files. To make sure that the watch function doesn't try to upload those to the server you may specify a regex of files to ignore. Default settings ignore files starting with `#` and/or ending with `~`. Added in version 0.8.5. You need to add the `watchIgnorePattern` line to any previous projects you have, if you want to add the functionality.
 
 ##### Host(s)
 * Array of Liferay servers, e.g your local development server, your test server, your production server etc.
