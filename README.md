@@ -1,6 +1,11 @@
 #Liferay DDM Tool
 Command Line Tool for authoring, uploading, downloading and synchronizing Liferay DDM related stuff (Structures and Templates) across environments. All transactions are done over JSON Web Services.
 
+### Demonstration recorded at Liferay DevCon 2014
+
+[![ScreenShot](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/screenshot-youtube-devcon-2014.png](https://www.youtube.com/watch?v=f9x7wL16KIk#t=796)
+
+### Flowchart
 
 ![Flowchart of DDM Tool](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/flowchart-main.png)
 
