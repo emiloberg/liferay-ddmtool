@@ -3,7 +3,7 @@ Command Line Tool for authoring, uploading, downloading and synchronizing Lifera
 
 ### Demonstration recorded at Liferay DevCon 2014
 
-[![ScreenShot](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/screenshot-youtube-devcon-2014.png](https://www.youtube.com/watch?v=f9x7wL16KIk#t=796)
+[![Screenshot of YouTube video](https://raw.githubusercontent.com/emiloberg/liferay-ddmtool/master/docs/images/screenshot-youtube-devcon-2014.png)](https://www.youtube.com/watch?v=f9x7wL16KIk#t=796)
 
 ### Flowchart
 
