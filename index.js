@@ -9,15 +9,18 @@ var utilities	                    = require('./lib/utilities.js');
 var Config							= require('./lib/Config.js');
 
 // Set paths
-var userHome 			= utilities.getUserHome();
-var ddmToolFolder 		= Constants.fetch('ddmToolFolder');
-var settingsFolder 		= Constants.fetch('settingsFolder');
-var projectsFolder 		= Constants.fetch('projectsFolder');
-var cacheFolder 		= Constants.fetch('cacheFolder');
+var userHome 				= utilities.getUserHome();
+var ddmToolFolder 			= Constants.fetch('ddmToolFolder');
+var settingsFolder 			= Constants.fetch('settingsFolder');
+var projectsFolder 			= Constants.fetch('projectsFolder');
+var cacheFolder 			= Constants.fetch('cacheFolder');
+var articlesCacheFolder 	= Constants.fetch('articlesCacheFolder');
+
 Config.set('userHome', userHome);
 Config.set('settingsFolder', userHome + '/' + ddmToolFolder + '/' + settingsFolder);
 Config.set('projectsFolder', userHome + '/' + ddmToolFolder + '/' + settingsFolder + '/' + projectsFolder);
 Config.set('cacheFolder', userHome + '/' + ddmToolFolder + '/' + cacheFolder);
+Config.set('articlesCacheFolder', userHome + '/' + ddmToolFolder + '/' + articlesCacheFolder);
 
 saveArgs(argv);
 LrClassNameConfig.loadCustomClassNames();
