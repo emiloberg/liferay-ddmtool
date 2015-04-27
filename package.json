@@ -12,6 +12,17 @@
     "type": "git",
     "url": "https://github.com/emiloberg/liferay-ddmtool.git"
   },
+  "bugs": {
+    "url": "https://github.com/emiloberg/liferay-ddmtool/issues"
+  },
+  "homepage": "https://github.com/emiloberg/liferay-ddmtool",
+  "keywords": [
+    "liferay",
+    "tool",
+    "ddm",
+    "dynamic data mapping",
+    "dynamic data list"
+  ],  
   "dependencies": {
     "q": "^1.0.1",
     "superagent": "^0.18.2",
@@ -35,5 +46,8 @@
     "grunt-contrib-jshint": "^0.10.0",
     "jshint-table-reporter": "^0.1.0",
     "grunt-bump": "0.0.15"
-  }
+  },
+  "bin": {
+    "ddm": "index.js"
+  }  
 }

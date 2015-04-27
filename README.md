@@ -26,10 +26,19 @@ Command Line Tool for authoring, uploading, downloading and synchronizing Lifera
 
 ## Installation
 
-1. Make sure [Node.js](http://nodejs.org/) is installed by running `node -v` in your command line. If not, [install Node](http://nodejs.org/).
-2. Clone this repository to a directory of your choice.
-3. cd into that directory and run `npm install` to install dependencies.
-4. run `node index.js` to run this App.
+Requires [Node.js](http://nodejs.org/) (if unsure if you have node install, run `node -v` in a console.)
+
+Install with npm:
+
+```
+npm install -g liferay-ddmtool
+```
+
+and then run:
+
+```
+ddm
+```
 
 If this is the first time you use this App. You most probably want to download all structures and templates to a local folder.
 
