@@ -31,7 +31,7 @@ Requires [Node.js](http://nodejs.org/) (if unsure if you have node install, run 
 Install with npm:
 
 ```
-npm install -g liferay-ddmtool
+sudo npm install -g liferay-ddmtool
 ```
 
 and then run:
