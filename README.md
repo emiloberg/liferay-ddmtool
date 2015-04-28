@@ -61,7 +61,7 @@ Usually you want to upload files to your _localhost_ development environment.
 Run DDM Tool with the `-w`/`--watch` flag to go straight into watch mode:
 
 ```
-index.js -w --project <awesomeproject> --server <servername>
+ddm -w --project <awesomeproject> --server <servername>
 ```
 
 ### Setting up a new environment, such as a new live/dev server
@@ -73,7 +73,7 @@ Checkout all structures and templates from your resposity, run the DDM Tool and 
 Run DDM Tool with the `-u`/`--upload` flag to upload all files without any menu selections.
 
 ```
-index.js -u --project <awesomeproject> --server <servername>
+ddm -u --project <awesomeproject> --server <servername>
 ```
 
 
@@ -92,7 +92,7 @@ Start up the DDM Tool and go into _"Find Diffs"_. From there you may show all di
 Run DDM Tool with the `-i`/`--diffs` flag to go straight into diffs mode:
 
 ```
-index.js -i --project <awesomeproject> --server <servername>
+ddm -i --project <awesomeproject> --server <servername>
 ```
 
 
@@ -103,13 +103,11 @@ Want to save all structures and templates from a server to your local disk? Just
 Run DDM Tool with the `-d`/`--download` flag to go straight into download mode:
 
 ```
-index.js -d --project <awesomeproject> --server <servername>
+ddm -d --project <awesomeproject> --server <servername>
 ```
 
 ## Command line arguments
-You may also start the App with some command line arguments. One common way to start the app is `node index.js --project <project-name> --server <server-name>` to skip the project and server selection menues. Run with `--help` to get all available arguments.
-
-The App is (yet) not published to [NPM](https://www.npmjs.org/) and may therefor not be installed "globally". If you want easier access to the tool, add it as an alias in your shell configuration. E.g. edit `~/.bash_profile` (for bash) or `~/.zshrc` for Z shell and add the line `alias ddm="node /PATH/TO/liferay-ddmtool/index.js"` and then just run with `ddm` from your console.
+You may also start the App with some command line arguments. One common way to start the app is `ddm --project <project-name> --server <server-name>` to skip the project and server selection menues. Run with `--help` to get all available arguments.
 
 ## Limitations
 * Currently there's no way of syncing *removal* of files. If you remove a file on server, you must remove it locally and vice versa.
